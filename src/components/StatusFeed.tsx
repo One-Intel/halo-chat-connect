@@ -4,12 +4,11 @@ import CreateStatusModal from "./CreateStatusModal";
 import NavBar from "@/components/NavBar";
 import StatusStoryBar from "./StatusStoryBar";
 import StatusComments from "./StatusComments";
-import TempChatInterface from "./TempChatInterface";
 import Avatar from "@/components/Avatar";
 import { useInfiniteStatusUpdates, useShareStatus } from '@/services/statusService';
 import { StatusUpdate } from '@/types/status';
 import { formatDistanceToNow } from 'date-fns';
-import { MessageCircle, Share, Eye, MoreVertical, MessageSquare } from 'lucide-react';
+import { MessageCircle, Share, Eye, MoreVertical } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Badge } from '@/components/ui/badge';
@@ -19,8 +18,6 @@ const StatusFeed: React.FC = () => {
   const [viewMode, setViewMode] = useState<'friends' | 'public'>('friends');
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [expandedComments, setExpandedComments] = useState<Set<string>>(new Set());
-  const [tempChatUser, setTempChatUser] = useState<string | null>(null);
-  const [showTempChat, setShowTempChat] = useState(false);
   const { user } = useAuth();
   
   const {
@@ -65,11 +62,6 @@ const StatusFeed: React.FC = () => {
     } catch (error) {
       console.error('Failed to share status:', error);
     }
-  };
-
-  const handleStartTempChat = (userId: string) => {
-    setTempChatUser(userId);
-    setShowTempChat(true);
   };
 
   return (
@@ -150,19 +142,6 @@ const StatusFeed: React.FC = () => {
                   </div>
                   
                   <div className="flex items-center gap-2">
-                    {/* Temp Chat Button - Only show if not own status */}
-                    {user && status.user_id !== user.id && (
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => handleStartTempChat(status.user_id)}
-                        className="text-wispa-500 hover:bg-wispa-50 flex items-center gap-1"
-                      >
-                        <MessageSquare className="h-4 w-4" />
-                        <span className="text-xs hidden sm:inline">Message</span>
-                      </Button>
-                    )}
-                    
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
                         <Button variant="ghost" size="sm">
@@ -277,18 +256,6 @@ const StatusFeed: React.FC = () => {
           user={user || { id: "demo-user" }}
           onClose={() => setShowCreateModal(false)}
           onPost={() => {}}
-        />
-      )}
-
-      {/* Temporary Chat Interface */}
-      {tempChatUser && (
-        <TempChatInterface
-          chatId={`temp-${user?.id}-${tempChatUser}`}
-          isOpen={showTempChat}
-          onClose={() => {
-            setShowTempChat(false);
-            setTempChatUser(null);
-          }}
         />
       )}
     </div>

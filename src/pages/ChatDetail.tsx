@@ -1,10 +1,11 @@
 import React, { useRef, useEffect, useState } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
-import { Phone, Video, ArrowLeft, MoreVertical, UserPlus, Archive, Trash2 } from 'lucide-react';
+import { Phone, Video, ArrowLeft, MoreVertical, UserPlus, Archive, Trash2, Clock } from 'lucide-react';
 import Avatar from '@/components/Avatar';
 import ChatBubble from '@/components/ChatBubble';
 import ChatInput from '@/components/ChatInput';
 import { ForwardMessageDialog } from '@/components/ForwardMessageDialog';
+import TempChatInterface from '@/components/TempChatInterface';
 import { useChat, useSendMessage, useAddReaction, useRemoveReaction, type Message } from '@/services/chatService';
 import { useTypingStatus } from '@/services/typingService';
 import { useMessageStatus } from '@/services/messageStatusService';
@@ -22,6 +23,7 @@ import {
   DropdownMenuTrigger,
   DropdownMenuSeparator,
 } from '@/components/ui/dropdown-menu';
+import { Button } from '@/components/ui/button';
 
 const ChatDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -32,6 +34,7 @@ const ChatDetail: React.FC = () => {
   const [replyTo, setReplyTo] = useState<Message | null>(null);
   const [forwardMessage, setForwardMessage] = useState<Message | null>(null);
   const [showForwardDialog, setShowForwardDialog] = useState(false);
+  const [showTempChat, setShowTempChat] = useState(false);
   
   const { 
     data: chat, 
@@ -283,6 +286,11 @@ const ChatDetail: React.FC = () => {
     );
   };
 
+  const handleStartTempChat = () => {
+    if (!otherParticipant) return;
+    setShowTempChat(true);
+  };
+
   const formatMessageTimestamp = (timestamp: string) => {
     try {
       return format(new Date(timestamp), 'p');
@@ -352,7 +360,17 @@ const ChatDetail: React.FC = () => {
           </div>
         </div>
         
-        <div className="flex space-x-3">
+        <div className="flex space-x-2">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={handleStartTempChat}
+            className="p-2 rounded-full hover:bg-wispa-600 text-wispa-100"
+            title="Start temporary chat"
+          >
+            <Clock className="h-5 w-5" />
+          </Button>
+          
           <button 
             onClick={() => handleCall('audio')}
             className="p-2 rounded-full hover:bg-wispa-600"
@@ -454,6 +472,15 @@ const ChatDetail: React.FC = () => {
           message={forwardMessage}
           onClose={() => setShowForwardDialog(false)}
           onForward={handleForwardToChat}
+        />
+      )}
+
+      {/* Temporary Chat Interface */}
+      {otherParticipant && (
+        <TempChatInterface
+          chatId={id || ''}
+          isOpen={showTempChat}
+          onClose={() => setShowTempChat(false)}
         />
       )}
     </div>
