@@ -4,53 +4,52 @@ import { useAuth } from "@/contexts/AuthContext";
 import { StatusUpdate } from "@/types/status";
 import { PostgrestFilterBuilder } from '@supabase/postgrest-js';
 
-// Fetch status updates
-export function useStatusUpdates() {
+// Fetch status updates with enhanced filtering
+export function useStatusUpdates(viewMode: 'friends' | 'public' = 'friends') {
   const { user } = useAuth();
   
   return useQuery({
-    queryKey: ['status-updates'],
+    queryKey: ['status-updates', viewMode],
     queryFn: async () => {
-      const { data, error } = await supabase
+      let query = supabase
         .from('status_updates')
         .select(`
-          id, user_id, content, media_url, created_at, expires_at,
+          id, user_id, content, media_url, created_at, expires_at, is_public, 
+          privacy_level, comment_count, share_count,
           user:profiles(username, avatar_url)
         `)
         .gt('expires_at', new Date().toISOString())
         .order('created_at', { ascending: false });
+      
+      // Filter based on view mode
+      if (viewMode === 'public') {
+        query = query.eq('is_public', true).eq('privacy_level', 'public');
+      } else if (viewMode === 'friends') {
+        // Show public posts and friends-only posts from friends
+        query = query.or(
+          `is_public.eq.true,and(privacy_level.eq.friends,user_id.in.(${await getFriendIds()}))`
+        );
+      }
         
+      const { data, error } = await query;
       if (error) throw error;
       
-      // Get reactions and views for each status
+      // Get reactions, views, and other details for each status
       const statusWithDetails = await Promise.all(
         (data || []).map(async (status) => {
-          const { data: reactions } = await supabase
-            .from('status_reactions')
-            .select('emoji, user_id')
-            .eq('status_id', status.id);
-
-          const reactionMap: Record<string, string[]> = {};
-          if (reactions) {
-            reactions.forEach((reaction) => {
-              if (!reactionMap[reaction.emoji]) {
-                reactionMap[reaction.emoji] = [];
-              }
-              reactionMap[reaction.emoji].push(reaction.user_id);
-            });
-          }
-
-          const { data: views, count } = await supabase
-            .from('status_views')
-            .select('viewer_id', { count: 'exact', head: false })
-            .eq('status_id', status.id);
+          const [reactions, views, shares] = await Promise.all([
+            getStatusReactions(status.id),
+            getStatusViews(status.id),
+            getStatusShares(status.id)
+          ]);
 
           return {
             ...status,
             user: Array.isArray(status.user) ? status.user[0] : status.user,
-            reactions: reactionMap,
+            reactions,
             views: views?.map((v: any) => v.viewer_id) || [],
-            viewCount: count ?? 0,
+            viewCount: views?.length || 0,
+            shares: shares?.map((s: any) => s.user_id) || [],
           };
         })
       );
@@ -61,13 +60,71 @@ export function useStatusUpdates() {
   });
 }
 
-// Create status update
+// Helper function to get friend IDs
+async function getFriendIds(): Promise<string> {
+  const { user } = useAuth();
+  if (!user) return '';
+  
+  const { data } = await supabase
+    .from('friendships')
+    .select('friend_id')
+    .eq('user_id', user.id);
+    
+  return data?.map(f => f.friend_id).join(',') || '';
+}
+
+// Helper functions for status details
+async function getStatusReactions(statusId: string) {
+  const { data: reactions } = await supabase
+    .from('status_reactions')
+    .select('emoji, user_id')
+    .eq('status_id', statusId);
+
+  const reactionMap: Record<string, string[]> = {};
+  if (reactions) {
+    reactions.forEach((reaction) => {
+      if (!reactionMap[reaction.emoji]) {
+        reactionMap[reaction.emoji] = [];
+      }
+      reactionMap[reaction.emoji].push(reaction.user_id);
+    });
+  }
+  return reactionMap;
+}
+
+async function getStatusViews(statusId: string) {
+  const { data } = await supabase
+    .from('status_views')
+    .select('viewer_id')
+    .eq('status_id', statusId);
+  return data;
+}
+
+async function getStatusShares(statusId: string) {
+  const { data } = await supabase
+    .from('status_shares')
+    .select('user_id')
+    .eq('status_id', statusId);
+  return data;
+}
+
+// Create status update with privacy controls
 export function useCreateStatus() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
   
   return useMutation({
-    mutationFn: async ({ content, mediaUrl }: { content?: string; mediaUrl?: string }) => {
+    mutationFn: async ({ 
+      content, 
+      mediaUrl, 
+      privacyLevel = 'public',
+      isPublic = true 
+    }: { 
+      content?: string; 
+      mediaUrl?: string; 
+      privacyLevel?: 'public' | 'friends';
+      isPublic?: boolean;
+    }) => {
       if (!user) throw new Error('No user');
       
       const expiresAt = new Date();
@@ -80,13 +137,40 @@ export function useCreateStatus() {
           content,
           media_url: mediaUrl,
           expires_at: expiresAt.toISOString(),
-
+          is_public: isPublic,
+          privacy_level: privacyLevel,
         })
         .select('*')
         .single();
         
       if (error) throw error;
       return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['status-updates'] });
+    },
+  });
+}
+
+// Share a status
+export function useShareStatus() {
+  const { user } = useAuth();
+  const queryClient = useQueryClient();
+  
+  return useMutation({
+    mutationFn: async ({ statusId }: { statusId: string }) => {
+      if (!user) throw new Error('No user');
+      
+      const { error } = await supabase
+        .from('status_shares')
+        .insert({
+          status_id: statusId,
+          user_id: user.id
+        });
+        
+      if (error && !error.message.includes('duplicate')) {
+        throw error;
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['status-updates'] });
@@ -114,8 +198,6 @@ export function useViewStatus() {
       if (viewError && !viewError.message.includes('duplicate')) {
         throw viewError;
       }
-      
-
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['status-updates'] });
@@ -190,7 +272,7 @@ export function useDeleteStatus() {
   });
 }
 
-// Infinite scroll for status updates
+// Infinite scroll for status updates with enhanced filtering
 export function useInfiniteStatusUpdates(pageSize = 10, viewMode = 'friends') {
   const { user } = useAuth();
   return useInfiniteQuery<StatusUpdate[], Error>({
@@ -200,21 +282,50 @@ export function useInfiniteStatusUpdates(pageSize = 10, viewMode = 'friends') {
       let query: PostgrestFilterBuilder<any, any, any> = supabase
         .from('status_updates')
         .select(`
-          id, user_id, content, media_url, created_at, expires_at,
+          id, user_id, content, media_url, created_at, expires_at, is_public, 
+          privacy_level, comment_count, share_count,
           user:profiles(username, avatar_url)
         `)
         .gt('expires_at', new Date().toISOString())
         .order('created_at', { ascending: false })
         .limit(pageSize);
+        
       if (pageParam) {
         query = query.lt('created_at', pageParam);
       }
+      
+      // Apply privacy filtering
       if (viewMode === 'public') {
-        query = query.eq('is_public', true);
+        query = query.eq('is_public', true).eq('privacy_level', 'public');
+      } else if (viewMode === 'friends' && user) {
+        // This is a simplified version - in production you'd want to optimize this
+        query = query.or(`is_public.eq.true,privacy_level.eq.friends`);
       }
+      
       const { data, error } = await query;
       if (error) throw error;
-      return (data || []) as StatusUpdate[];
+      
+      // Get additional details for each status
+      const enhancedData = await Promise.all(
+        (data || []).map(async (status) => {
+          const [reactions, views, shares] = await Promise.all([
+            getStatusReactions(status.id),
+            getStatusViews(status.id),
+            getStatusShares(status.id)
+          ]);
+
+          return {
+            ...status,
+            user: Array.isArray(status.user) ? status.user[0] : status.user,
+            reactions,
+            views: views?.map((v: any) => v.viewer_id) || [],
+            viewCount: views?.length || 0,
+            shares: shares?.map((s: any) => s.user_id) || [],
+          };
+        })
+      );
+      
+      return enhancedData as StatusUpdate[];
     },
     getNextPageParam: (lastPage) => {
       if (!lastPage || !Array.isArray(lastPage) || lastPage.length === 0) return undefined;

@@ -90,6 +90,38 @@ export type Database = {
         }
         Relationships: []
       }
+      comment_reactions: {
+        Row: {
+          comment_id: string
+          created_at: string
+          emoji: string
+          id: string
+          user_id: string
+        }
+        Insert: {
+          comment_id: string
+          created_at?: string
+          emoji: string
+          id?: string
+          user_id: string
+        }
+        Update: {
+          comment_id?: string
+          created_at?: string
+          emoji?: string
+          id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "comment_reactions_comment_id_fkey"
+            columns: ["comment_id"]
+            isOneToOne: false
+            referencedRelation: "status_comments"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       friend_requests: {
         Row: {
           created_at: string | null
@@ -332,6 +364,83 @@ export type Database = {
         }
         Relationships: []
       }
+      status_comments: {
+        Row: {
+          content: string
+          created_at: string
+          id: string
+          reply_to_comment_id: string | null
+          status_id: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          content: string
+          created_at?: string
+          id?: string
+          reply_to_comment_id?: string | null
+          status_id: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          content?: string
+          created_at?: string
+          id?: string
+          reply_to_comment_id?: string | null
+          status_id?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "status_comments_reply_to_comment_id_fkey"
+            columns: ["reply_to_comment_id"]
+            isOneToOne: false
+            referencedRelation: "status_comments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "status_comments_status_id_fkey"
+            columns: ["status_id"]
+            isOneToOne: false
+            referencedRelation: "status_updates"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      status_media: {
+        Row: {
+          id: string
+          media_type: string
+          media_url: string
+          position: number
+          status_id: string
+        }
+        Insert: {
+          id?: string
+          media_type: string
+          media_url: string
+          position?: number
+          status_id: string
+        }
+        Update: {
+          id?: string
+          media_type?: string
+          media_url?: string
+          position?: number
+          status_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "status_media_status_id_fkey"
+            columns: ["status_id"]
+            isOneToOne: false
+            referencedRelation: "status_updates"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       status_reactions: {
         Row: {
           created_at: string
@@ -362,44 +471,86 @@ export type Database = {
             referencedRelation: "status_updates"
             referencedColumns: ["id"]
           },
+        ]
+      }
+      status_shares: {
+        Row: {
+          id: string
+          shared_at: string
+          status_id: string
+          user_id: string
+        }
+        Insert: {
+          id?: string
+          shared_at?: string
+          status_id: string
+          user_id: string
+        }
+        Update: {
+          id?: string
+          shared_at?: string
+          status_id?: string
+          user_id?: string
+        }
+        Relationships: [
           {
-            foreignKeyName: "status_reactions_user_id_fkey"
-            columns: ["user_id"]
+            foreignKeyName: "status_shares_status_id_fkey"
+            columns: ["status_id"]
             isOneToOne: false
-            referencedRelation: "profiles"
+            referencedRelation: "status_updates"
             referencedColumns: ["id"]
           },
         ]
       }
       status_updates: {
         Row: {
+          comment_count: number | null
           content: string | null
           created_at: string
           expires_at: string
+          extra: Json | null
           id: string
-          media_url: string | null
+          is_public: boolean
+          privacy_level: string | null
+          reply_to_status_id: string | null
+          share_count: number | null
           user_id: string
-          viewed_by: Json | null
         }
         Insert: {
+          comment_count?: number | null
           content?: string | null
           created_at?: string
           expires_at?: string
+          extra?: Json | null
           id?: string
-          media_url?: string | null
+          is_public?: boolean
+          privacy_level?: string | null
+          reply_to_status_id?: string | null
+          share_count?: number | null
           user_id: string
-          viewed_by?: Json | null
         }
         Update: {
+          comment_count?: number | null
           content?: string | null
           created_at?: string
           expires_at?: string
+          extra?: Json | null
           id?: string
-          media_url?: string | null
+          is_public?: boolean
+          privacy_level?: string | null
+          reply_to_status_id?: string | null
+          share_count?: number | null
           user_id?: string
-          viewed_by?: Json | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "status_updates_reply_to_status_id_fkey"
+            columns: ["reply_to_status_id"]
+            isOneToOne: false
+            referencedRelation: "status_updates"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       status_views: {
         Row: {
@@ -426,6 +577,82 @@ export type Database = {
             columns: ["status_id"]
             isOneToOne: false
             referencedRelation: "status_updates"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      temp_chat_sessions: {
+        Row: {
+          chat_id: string
+          created_at: string
+          created_by: string
+          expires_at: string
+          id: string
+          is_active: boolean | null
+          started_at: string
+          timer_minutes: number
+        }
+        Insert: {
+          chat_id: string
+          created_at?: string
+          created_by: string
+          expires_at: string
+          id?: string
+          is_active?: boolean | null
+          started_at?: string
+          timer_minutes?: number
+        }
+        Update: {
+          chat_id?: string
+          created_at?: string
+          created_by?: string
+          expires_at?: string
+          id?: string
+          is_active?: boolean | null
+          started_at?: string
+          timer_minutes?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "temp_chat_sessions_chat_id_fkey"
+            columns: ["chat_id"]
+            isOneToOne: false
+            referencedRelation: "chats"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      temp_messages: {
+        Row: {
+          content: string
+          created_at: string
+          expires_at: string
+          id: string
+          session_id: string
+          user_id: string
+        }
+        Insert: {
+          content: string
+          created_at?: string
+          expires_at: string
+          id?: string
+          session_id: string
+          user_id: string
+        }
+        Update: {
+          content?: string
+          created_at?: string
+          expires_at?: string
+          id?: string
+          session_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "temp_messages_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: false
+            referencedRelation: "temp_chat_sessions"
             referencedColumns: ["id"]
           },
         ]
@@ -473,6 +700,18 @@ export type Database = {
       are_friends: {
         Args: { user1_id: string; user2_id: string }
         Returns: boolean
+      }
+      deactivate_expired_temp_sessions: {
+        Args: Record<PropertyKey, never>
+        Returns: undefined
+      }
+      delete_expired_statuses: {
+        Args: Record<PropertyKey, never>
+        Returns: undefined
+      }
+      delete_expired_temp_messages: {
+        Args: Record<PropertyKey, never>
+        Returns: undefined
       }
       generate_unique_user_id: {
         Args: Record<PropertyKey, never>
