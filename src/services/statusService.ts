@@ -1,3 +1,4 @@
+
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useMutation, useQueryClient, useInfiniteQuery } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/AuthContext";
@@ -14,7 +15,7 @@ export function useStatusUpdates(viewMode: 'friends' | 'public' = 'friends') {
       let query = supabase
         .from('status_updates')
         .select(`
-          id, user_id, content, media_url, created_at, expires_at, is_public, 
+          id, user_id, content, created_at, expires_at, is_public, 
           privacy_level, comment_count, share_count,
           user:profiles(username, avatar_url)
         `)
@@ -45,6 +46,7 @@ export function useStatusUpdates(viewMode: 'friends' | 'public' = 'friends') {
 
           return {
             ...status,
+            media_url: null, // Add default media_url for now
             user: Array.isArray(status.user) ? status.user[0] : status.user,
             reactions,
             views: views?.map((v: any) => v.viewer_id) || [],
@@ -62,13 +64,10 @@ export function useStatusUpdates(viewMode: 'friends' | 'public' = 'friends') {
 
 // Helper function to get friend IDs
 async function getFriendIds(): Promise<string> {
-  const { user } = useAuth();
-  if (!user) return '';
-  
   const { data } = await supabase
     .from('friendships')
     .select('friend_id')
-    .eq('user_id', user.id);
+    .eq('user_id', supabase.auth.getUser());
     
   return data?.map(f => f.friend_id).join(',') || '';
 }
@@ -135,7 +134,6 @@ export function useCreateStatus() {
         .insert({
           user_id: user.id,
           content,
-          media_url: mediaUrl,
           expires_at: expiresAt.toISOString(),
           is_public: isPublic,
           privacy_level: privacyLevel,
@@ -282,7 +280,7 @@ export function useInfiniteStatusUpdates(pageSize = 10, viewMode = 'friends') {
       let query: PostgrestFilterBuilder<any, any, any> = supabase
         .from('status_updates')
         .select(`
-          id, user_id, content, media_url, created_at, expires_at, is_public, 
+          id, user_id, content, created_at, expires_at, is_public, 
           privacy_level, comment_count, share_count,
           user:profiles(username, avatar_url)
         `)
@@ -316,6 +314,7 @@ export function useInfiniteStatusUpdates(pageSize = 10, viewMode = 'friends') {
 
           return {
             ...status,
+            media_url: null, // Add default media_url for now
             user: Array.isArray(status.user) ? status.user[0] : status.user,
             reactions,
             views: views?.map((v: any) => v.viewer_id) || [],

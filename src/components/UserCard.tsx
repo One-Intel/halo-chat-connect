@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { User, MessageSquare, UserMinus, ChevronDown, ChevronUp } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -31,7 +32,7 @@ const UserCard: React.FC<UserCardProps> = ({ user, isFriend = false }) => {
 
   const handleRemoveFriend = async () => {
     try {
-      await removeFriend(user.id);
+      await removeFriend({ friendId: user.id });
       toast({
         title: 'Friend removed',
         description: `${user.username} has been removed from your friends list.`
@@ -50,7 +51,11 @@ const UserCard: React.FC<UserCardProps> = ({ user, isFriend = false }) => {
       <Collapsible open={isExpanded} onOpenChange={setIsExpanded}>
         <CardHeader className="flex flex-row items-center justify-between p-4">
           <div className="flex items-center space-x-4">
-            <Avatar user={user} size="lg" />
+            <Avatar 
+              src={user.avatar_url || undefined} 
+              alt={user.username || 'User'} 
+              size="lg" 
+            />
             <div>
               <CardTitle className="text-lg font-semibold">
                 {user.username || 'Unknown User'}
