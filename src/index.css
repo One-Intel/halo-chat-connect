@@ -130,7 +130,7 @@
   }
   
   .wispa-header {
-    @apply bg-blue-500 dark:bg-blue-600 text-white px-4 py-3 flex items-center justify-between transition-colors duration-300;
+    @apply bg-wispa-500 dark:bg-wispa-600 text-white px-4 py-3 flex items-center justify-between transition-colors duration-300;
   }
   
   .wispa-chat-bubble {
@@ -138,7 +138,7 @@
   }
   
   .wispa-sent {
-    @apply bg-blue-500 dark:bg-blue-600 text-white;
+    @apply bg-wispa-500 dark:bg-wispa-600 text-white;
   }
   
   .wispa-received {
@@ -150,7 +150,7 @@
   }
   
   .wispa-btn-primary {
-    @apply bg-blue-500 dark:bg-blue-600 text-white hover:bg-blue-600 dark:hover:bg-blue-700;
+    @apply bg-wispa-500 dark:bg-wispa-600 text-white hover:bg-wispa-600 dark:hover:bg-wispa-700;
   }
   
   .wispa-btn-secondary {
@@ -167,11 +167,64 @@
   }
   
   .wispa-navbar-item-active {
-    @apply text-blue-500 dark:text-blue-400;
+    @apply text-wispa-500 dark:text-wispa-400;
   }
   
   /* Add padding to the bottom of scrollable content areas to account for navbar */
   .wispa-content-with-navbar {
     @apply pb-16;
+  }
+
+  /* Status-specific styles */
+  .status-card {
+    @apply bg-white dark:bg-gray-800 rounded-xl shadow-sm hover:shadow-md transition-all duration-200 border border-border;
+  }
+
+  .status-card:hover {
+    @apply shadow-lg transform scale-[1.01];
+  }
+
+  .status-header {
+    @apply flex items-start justify-between p-4 pb-2;
+  }
+
+  .status-content {
+    @apply px-4 pb-2 text-base text-foreground leading-relaxed;
+  }
+
+  .status-actions {
+    @apply px-4 py-2 flex gap-2 border-t border-gray-100 dark:border-gray-700;
+  }
+
+  .status-action-btn {
+    @apply flex-1 text-xs hover:bg-wispa-50 hover:text-wispa-600 transition-colors duration-200;
+  }
+
+  /* Animation improvements */
+  .fade-in {
+    @apply animate-fade-in;
+  }
+
+  .pulse-gentle {
+    @apply animate-pulse;
+  }
+
+  /* Mobile-first responsive improvements */
+  @media (max-width: 640px) {
+    .status-card {
+      @apply mx-1 rounded-lg;
+    }
+    
+    .status-header {
+      @apply p-3 pb-2;
+    }
+    
+    .status-content {
+      @apply px-3 pb-2;
+    }
+    
+    .status-actions {
+      @apply px-3 py-2;
+    }
   }
 }

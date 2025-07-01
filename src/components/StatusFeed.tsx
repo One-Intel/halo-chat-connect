@@ -4,20 +4,24 @@ import CreateStatusModal from "./CreateStatusModal";
 import NavBar from "@/components/NavBar";
 import StatusStoryBar from "./StatusStoryBar";
 import StatusComments from "./StatusComments";
+import TempChatInterface from "./TempChatInterface";
 import Avatar from "@/components/Avatar";
 import { useInfiniteStatusUpdates, useShareStatus } from '@/services/statusService';
 import { StatusUpdate } from '@/types/status';
 import { formatDistanceToNow } from 'date-fns';
-import { MessageCircle, Share, Eye, MoreVertical } from 'lucide-react';
+import { MessageCircle, Share, Eye, MoreVertical, MessageSquare } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Badge } from '@/components/ui/badge';
+import { useAuth } from '@/contexts/AuthContext';
 
 const StatusFeed: React.FC = () => {
   const [viewMode, setViewMode] = useState<'friends' | 'public'>('friends');
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [expandedComments, setExpandedComments] = useState<Set<string>>(new Set());
-  const user = { id: "demo-user" }; // TODO: Get user from context or props
+  const [tempChatUser, setTempChatUser] = useState<string | null>(null);
+  const [showTempChat, setShowTempChat] = useState(false);
+  const { user } = useAuth();
   
   const {
     data,
@@ -63,6 +67,11 @@ const StatusFeed: React.FC = () => {
     }
   };
 
+  const handleStartTempChat = (userId: string) => {
+    setTempChatUser(userId);
+    setShowTempChat(true);
+  };
+
   return (
     <div className="flex flex-col h-screen bg-background dark:bg-gray-900">
       <header className="flex justify-between items-center p-4 bg-white dark:bg-gray-900 shadow-sm sticky top-0 z-10 border-b border-border">
@@ -70,7 +79,7 @@ const StatusFeed: React.FC = () => {
         <div className="flex gap-4">
           <button
             onClick={() => setShowCreateModal(true)}
-            className="bg-orange-500 hover:bg-orange-600 text-white px-4 py-2 rounded-full shadow transition-colors"
+            className="bg-wispa-500 hover:bg-wispa-600 text-white px-4 py-2 rounded-full shadow transition-colors"
           >
             Create Status
           </button>
@@ -81,7 +90,7 @@ const StatusFeed: React.FC = () => {
         <button
           className={`flex-1 py-3 font-semibold transition-all duration-200 ${
             viewMode === 'friends' 
-              ? 'bg-orange-500 text-white shadow-sm' 
+              ? 'bg-wispa-500 text-white shadow-sm' 
               : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
           }`}
           onClick={() => setViewMode('friends')}
@@ -91,7 +100,7 @@ const StatusFeed: React.FC = () => {
         <button
           className={`flex-1 py-3 font-semibold transition-all duration-200 ${
             viewMode === 'public' 
-              ? 'bg-orange-500 text-white shadow-sm' 
+              ? 'bg-wispa-500 text-white shadow-sm' 
               : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
           }`}
           onClick={() => setViewMode('public')}
@@ -109,22 +118,22 @@ const StatusFeed: React.FC = () => {
         {/* Enhanced Status Feed */}
         <div className="flex flex-col gap-2 px-2 pt-2">
           {statuses.length === 0 && status === 'success' ? (
-            <div className="flex items-center justify-center h-full text-muted-foreground text-lg">
+            <div className="flex items-center justify-center h-full text-muted-foreground text-lg py-20">
               No statuses yet.
             </div>
           ) : (
             statuses.map((status, idx) => (
-              <div key={status.id || idx} className="bg-white dark:bg-gray-900 border border-border rounded-xl shadow-sm hover:shadow-md transition-shadow p-0 overflow-hidden">
+              <div key={status.id || idx} className="bg-white dark:bg-gray-800 border border-border rounded-xl shadow-sm hover:shadow-md transition-all duration-200 p-0 overflow-hidden mb-2">
                 {/* Status Header */}
-                <div className="flex items-center justify-between p-4 pb-2">
-                  <div className="flex items-center gap-3">
+                <div className="flex items-start justify-between p-4 pb-2">
+                  <div className="flex items-center gap-3 flex-1">
                     <Avatar 
                       src={status.user?.avatar_url || undefined} 
                       alt={status.user?.username || 'User'} 
                       size="sm" 
                     />
-                    <div className="flex flex-col">
-                      <div className="flex items-center gap-2">
+                    <div className="flex flex-col flex-1">
+                      <div className="flex items-center gap-2 flex-wrap">
                         <span className="font-semibold text-foreground text-sm">
                           {status.user?.username || 'Anonymous'}
                         </span>
@@ -140,26 +149,41 @@ const StatusFeed: React.FC = () => {
                     </div>
                   </div>
                   
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button variant="ghost" size="sm">
-                        <MoreVertical className="h-4 w-4" />
+                  <div className="flex items-center gap-2">
+                    {/* Temp Chat Button - Only show if not own status */}
+                    {user && status.user_id !== user.id && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handleStartTempChat(status.user_id)}
+                        className="text-wispa-500 hover:bg-wispa-50 flex items-center gap-1"
+                      >
+                        <MessageSquare className="h-4 w-4" />
+                        <span className="text-xs hidden sm:inline">Message</span>
                       </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                      <DropdownMenuItem onClick={() => handleShare(status.id)}>
-                        <Share className="h-4 w-4 mr-2" />
-                        Share
-                      </DropdownMenuItem>
-                      <DropdownMenuItem>Report</DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
+                    )}
+                    
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" size="sm">
+                          <MoreVertical className="h-4 w-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem onClick={() => handleShare(status.id)}>
+                          <Share className="h-4 w-4 mr-2" />
+                          Share
+                        </DropdownMenuItem>
+                        <DropdownMenuItem>Report</DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </div>
                 </div>
                 
                 {/* Status Content */}
                 {status.content && (
                   <div className="px-4 pb-2">
-                    <p className="text-base text-foreground">{status.content}</p>
+                    <p className="text-base text-foreground leading-relaxed">{status.content}</p>
                   </div>
                 )}
                 
@@ -185,7 +209,7 @@ const StatusFeed: React.FC = () => {
                 )}
                 
                 {/* Status Stats */}
-                <div className="px-4 py-2 flex items-center justify-between text-sm text-muted-foreground border-t border-gray-100">
+                <div className="px-4 py-2 flex items-center justify-between text-sm text-muted-foreground border-t border-gray-100 dark:border-gray-700">
                   <div className="flex items-center gap-4">
                     <span className="flex items-center gap-1">
                       <Eye className="h-4 w-4" />
@@ -202,18 +226,18 @@ const StatusFeed: React.FC = () => {
                 </div>
                 
                 {/* Action Buttons */}
-                <div className="px-4 py-2 flex gap-2 border-t border-gray-100">
+                <div className="px-4 py-2 flex gap-2 border-t border-gray-100 dark:border-gray-700">
                   <Button 
                     variant="ghost" 
                     size="sm" 
-                    className="flex-1 text-xs hover:bg-gray-50"
+                    className="flex-1 text-xs hover:bg-wispa-50 hover:text-wispa-600 transition-colors"
                   >
                     👍 Like
                   </Button>
                   <Button 
                     variant="ghost" 
                     size="sm" 
-                    className="flex-1 text-xs hover:bg-gray-50"
+                    className="flex-1 text-xs hover:bg-wispa-50 hover:text-wispa-600 transition-colors"
                     onClick={() => toggleComments(status.id)}
                   >
                     <MessageCircle className="h-4 w-4 mr-1" />
@@ -222,7 +246,7 @@ const StatusFeed: React.FC = () => {
                   <Button 
                     variant="ghost" 
                     size="sm" 
-                    className="flex-1 text-xs hover:bg-gray-50"
+                    className="flex-1 text-xs hover:bg-wispa-50 hover:text-wispa-600 transition-colors"
                     onClick={() => handleShare(status.id)}
                   >
                     <Share className="h-4 w-4 mr-1" />
@@ -232,7 +256,7 @@ const StatusFeed: React.FC = () => {
                 
                 {/* Comments Section */}
                 {expandedComments.has(status.id) && (
-                  <div className="border-t border-gray-100 p-4">
+                  <div className="border-t border-gray-100 dark:border-gray-700 p-4 bg-gray-50 dark:bg-gray-900/50">
                     <StatusComments statusId={status.id} />
                   </div>
                 )}
@@ -242,7 +266,7 @@ const StatusFeed: React.FC = () => {
           
           {isFetchingNextPage && (
             <div className="flex items-center justify-center py-4 text-muted-foreground">
-              Loading more...
+              <div className="animate-pulse">Loading more...</div>
             </div>
           )}
         </div>
@@ -250,9 +274,21 @@ const StatusFeed: React.FC = () => {
       
       {showCreateModal && (
         <CreateStatusModal
-          user={user}
+          user={user || { id: "demo-user" }}
           onClose={() => setShowCreateModal(false)}
           onPost={() => {}}
+        />
+      )}
+
+      {/* Temporary Chat Interface */}
+      {tempChatUser && (
+        <TempChatInterface
+          chatId={`temp-${user?.id}-${tempChatUser}`}
+          isOpen={showTempChat}
+          onClose={() => {
+            setShowTempChat(false);
+            setTempChatUser(null);
+          }}
         />
       )}
     </div>
