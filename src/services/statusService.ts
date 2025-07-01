@@ -1,4 +1,3 @@
-
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useMutation, useQueryClient, useInfiniteQuery } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/AuthContext";
@@ -25,11 +24,16 @@ export function useStatusUpdates(viewMode: 'friends' | 'public' = 'friends') {
       // Filter based on view mode
       if (viewMode === 'public') {
         query = query.eq('is_public', true).eq('privacy_level', 'public');
-      } else if (viewMode === 'friends') {
+      } else if (viewMode === 'friends' && user) {
         // Show public posts and friends-only posts from friends
-        query = query.or(
-          `is_public.eq.true,and(privacy_level.eq.friends,user_id.in.(${await getFriendIds()}))`
-        );
+        const friendIds = await getFriendIds(user.id);
+        if (friendIds) {
+          query = query.or(
+            `is_public.eq.true,and(privacy_level.eq.friends,user_id.in.(${friendIds}))`
+          );
+        } else {
+          query = query.eq('is_public', true);
+        }
       }
         
       const { data, error } = await query;
@@ -63,13 +67,13 @@ export function useStatusUpdates(viewMode: 'friends' | 'public' = 'friends') {
 }
 
 // Helper function to get friend IDs
-async function getFriendIds(): Promise<string> {
+async function getFriendIds(currentUserId: string): Promise<string | null> {
   const { data } = await supabase
     .from('friendships')
     .select('friend_id')
-    .eq('user_id', supabase.auth.getUser());
+    .eq('user_id', currentUserId);
     
-  return data?.map(f => f.friend_id).join(',') || '';
+  return data?.length ? data.map(f => f.friend_id).join(',') : null;
 }
 
 // Helper functions for status details
