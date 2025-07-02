@@ -75,8 +75,7 @@ export function useTempMessages(sessionId: string) {
       const { data, error } = await supabase
         .from('temp_messages')
         .select(`
-          id, session_id, user_id, content, created_at, expires_at,
-          user:profiles(username, avatar_url)
+          id, session_id, user_id, content, created_at, expires_at
         `)
         .eq('session_id', sessionId)
         .gt('expires_at', new Date().toISOString())

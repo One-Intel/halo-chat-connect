@@ -56,4 +56,5 @@ export interface TempMessage {
   content: string;
   created_at: string;
   expires_at: string;
+  user?: StatusUser;
 }

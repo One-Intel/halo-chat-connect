@@ -268,9 +268,9 @@ const Profile: React.FC = () => {
           </Button>
         </div>
 
-        <div className="mt-8 flex justify-center" style={{ border: '2px solid red', background: 'yellow' }}>
+        <div className="mt-8 flex justify-center">
           <Link to="/profile/status-dashboard">
-            <Button className="bg-[#ff6200] hover:bg-[#ff7f32] text-white rounded-full px-6 py-2 shadow">
+            <Button className="bg-primary hover:bg-primary/90 text-primary-foreground rounded-full px-6 py-2 shadow-lg">
               My Status Dashboard
             </Button>
           </Link>

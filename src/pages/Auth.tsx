@@ -94,12 +94,12 @@ const Auth: React.FC = () => {
 
   if (currentView === 'signin') {
     return (
-      <div className="min-h-screen bg-gray-900 text-white flex flex-col">
+      <div className="min-h-screen bg-background text-foreground flex flex-col">
         {/* Header */}
         <div className="flex items-center justify-between p-4 pt-12">
           <button 
             onClick={() => navigate('/')}
-            className="p-2 rounded-full hover:bg-gray-800 transition-colors"
+            className="p-2 rounded-full hover:bg-muted transition-colors"
           >
             <ArrowLeft className="w-6 h-6" />
           </button>
@@ -123,7 +123,7 @@ const Auth: React.FC = () => {
                 placeholder="Enter your email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className="bg-gray-800 border-gray-700 text-white placeholder-gray-400 pl-12 py-4 rounded-2xl"
+                className="bg-muted border-border text-foreground placeholder-muted-foreground pl-12 py-4 rounded-2xl"
                 required
               />
             </div>
@@ -135,13 +135,13 @@ const Auth: React.FC = () => {
                 placeholder="Enter your password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="bg-gray-800 border-gray-700 text-white placeholder-gray-400 pl-12 pr-12 py-4 rounded-2xl"
+                className="bg-muted border-border text-foreground placeholder-muted-foreground pl-12 pr-12 py-4 rounded-2xl"
                 required
               />
               <button
                 type="button"
                 onClick={togglePasswordVisibility}
-                className="absolute right-4 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-white"
+                className="absolute right-4 top-1/2 transform -translate-y-1/2 text-muted-foreground hover:text-foreground"
               >
                 {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
               </button>
@@ -153,13 +153,13 @@ const Auth: React.FC = () => {
                   id="remember" 
                   checked={rememberMe}
                   onCheckedChange={(checked) => setRememberMe(!!checked)}
-                  className="border-gray-600"
+                  className="border-border"
                 />
-                <label htmlFor="remember" className="text-sm text-gray-300">
+                <label htmlFor="remember" className="text-sm text-muted-foreground">
                   Remember me
                 </label>
               </div>
-              <button type="button" className="text-sm text-gray-400 hover:text-white">
+              <button type="button" className="text-sm text-muted-foreground hover:text-foreground">
                 Forgot password
               </button>
             </div>
@@ -179,7 +179,7 @@ const Auth: React.FC = () => {
                 <div className="w-full border-t border-gray-700"></div>
               </div>
               <div className="relative flex justify-center text-sm">
-                <span className="px-3 bg-gray-900 text-gray-400">Or</span>
+                <span className="px-3 bg-background text-muted-foreground">Or</span>
               </div>
             </div>
 
@@ -189,7 +189,7 @@ const Auth: React.FC = () => {
                 variant="outline"
                 onClick={handleGoogleAuthClick}
                 disabled
-                className="w-full bg-gray-800 border-gray-700 text-white hover:bg-gray-700 py-4 rounded-2xl opacity-50"
+                className="w-full bg-muted border-border text-foreground hover:bg-muted/80 py-4 rounded-2xl opacity-50"
               >
                 <svg className="w-5 h-5 mr-3" viewBox="0 0 24 24">
                   <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
@@ -204,7 +204,7 @@ const Auth: React.FC = () => {
                 type="button"
                 variant="outline"
                 disabled
-                className="w-full bg-gray-800 border-gray-700 text-white hover:bg-gray-700 py-4 rounded-2xl opacity-50"
+                className="w-full bg-muted border-border text-foreground hover:bg-muted/80 py-4 rounded-2xl opacity-50"
               >
                 <svg className="w-5 h-5 mr-3" fill="#1877F2" viewBox="0 0 24 24">
                   <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/>
@@ -215,7 +215,7 @@ const Auth: React.FC = () => {
           </div>
 
           <div className="mt-8 text-center">
-            <span className="text-gray-400">Don't have an account? </span>
+            <span className="text-muted-foreground">Don't have an account? </span>
             <button
               type="button"
               onClick={() => setCurrentView('signup')}
@@ -230,12 +230,12 @@ const Auth: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gray-900 text-white flex flex-col">
+    <div className="min-h-screen bg-background text-foreground flex flex-col">
       {/* Header */}
       <div className="flex items-center justify-between p-4 pt-12">
         <button 
           onClick={() => setCurrentView('signin')}
-          className="p-2 rounded-full hover:bg-gray-800 transition-colors"
+          className="p-2 rounded-full hover:bg-muted transition-colors"
         >
           <ArrowLeft className="w-6 h-6" />
         </button>
@@ -259,7 +259,7 @@ const Auth: React.FC = () => {
               placeholder="Enter your name"
               value={username}
               onChange={(e) => setUsername(e.target.value)}
-              className="bg-gray-800 border-gray-700 text-white placeholder-gray-400 pl-12 py-4 rounded-2xl"
+              className="bg-muted border-border text-foreground placeholder-muted-foreground pl-12 py-4 rounded-2xl"
               required
             />
           </div>
@@ -271,7 +271,7 @@ const Auth: React.FC = () => {
               placeholder="Enter your email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className="bg-gray-800 border-gray-700 text-white placeholder-gray-400 pl-12 py-4 rounded-2xl"
+              className="bg-muted border-border text-foreground placeholder-muted-foreground pl-12 py-4 rounded-2xl"
               required
             />
           </div>
@@ -283,13 +283,13 @@ const Auth: React.FC = () => {
               placeholder="Enter your password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="bg-gray-800 border-gray-700 text-white placeholder-gray-400 pl-12 pr-12 py-4 rounded-2xl"
+              className="bg-muted border-border text-foreground placeholder-muted-foreground pl-12 pr-12 py-4 rounded-2xl"
               required
             />
             <button
               type="button"
               onClick={togglePasswordVisibility}
-              className="absolute right-4 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-white"
+              className="absolute right-4 top-1/2 transform -translate-y-1/2 text-muted-foreground hover:text-foreground"
             >
               {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
             </button>
@@ -302,13 +302,13 @@ const Auth: React.FC = () => {
               placeholder="Enter your confirm password"
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
-              className="bg-gray-800 border-gray-700 text-white placeholder-gray-400 pl-12 pr-12 py-4 rounded-2xl"
+              className="bg-muted border-border text-foreground placeholder-muted-foreground pl-12 pr-12 py-4 rounded-2xl"
               required
             />
             <button
               type="button"
               onClick={toggleConfirmPasswordVisibility}
-              className="absolute right-4 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-white"
+              className="absolute right-4 top-1/2 transform -translate-y-1/2 text-muted-foreground hover:text-foreground"
             >
               {showConfirmPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
             </button>
@@ -316,7 +316,7 @@ const Auth: React.FC = () => {
 
           <div className="space-y-2">
             <div className="flex justify-between items-center">
-              <label className="text-sm text-gray-300">Your User ID</label>
+              <label className="text-sm text-muted-foreground">Your User ID</label>
               <button 
                 type="button" 
                 onClick={generateUserID} 
@@ -329,9 +329,9 @@ const Auth: React.FC = () => {
               type="text" 
               value={userId}
               readOnly
-              className="bg-gray-700 border-gray-600 text-white text-center font-mono py-4 rounded-2xl"
+              className="bg-muted/50 border-border text-foreground text-center font-mono py-4 rounded-2xl"
             />
-            <p className="text-xs text-gray-400 text-center">
+            <p className="text-xs text-muted-foreground text-center">
               Save your user ID. You'll need it to connect with friends.
             </p>
           </div>
@@ -341,9 +341,9 @@ const Auth: React.FC = () => {
               id="remember-signup" 
               checked={rememberMe}
               onCheckedChange={(checked) => setRememberMe(!!checked)}
-              className="border-gray-600"
+              className="border-border"
             />
-            <label htmlFor="remember-signup" className="text-sm text-gray-300">
+            <label htmlFor="remember-signup" className="text-sm text-muted-foreground">
               Remember me
             </label>
           </div>
@@ -362,9 +362,9 @@ const Auth: React.FC = () => {
             <div className="absolute inset-0 flex items-center">
               <div className="w-full border-t border-gray-700"></div>
             </div>
-            <div className="relative flex justify-center text-sm">
-              <span className="px-3 bg-gray-900 text-gray-400">Or</span>
-            </div>
+              <div className="relative flex justify-center text-sm">
+                <span className="px-3 bg-background text-muted-foreground">Or</span>
+              </div>
           </div>
 
           <div className="space-y-3">
@@ -373,7 +373,7 @@ const Auth: React.FC = () => {
               variant="outline"
               onClick={handleGoogleAuthClick}
               disabled
-              className="w-full bg-gray-800 border-gray-700 text-white hover:bg-gray-700 py-4 rounded-2xl opacity-50"
+                className="w-full bg-muted border-border text-foreground hover:bg-muted/80 py-4 rounded-2xl opacity-50"
             >
               <svg className="w-5 h-5 mr-3" viewBox="0 0 24 24">
                 <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
@@ -388,7 +388,7 @@ const Auth: React.FC = () => {
               type="button"
               variant="outline"
               disabled
-              className="w-full bg-gray-800 border-gray-700 text-white hover:bg-gray-700 py-4 rounded-2xl opacity-50"
+              className="w-full bg-muted border-border text-foreground hover:bg-muted/80 py-4 rounded-2xl opacity-50"
             >
               <svg className="w-5 h-5 mr-3" fill="#1877F2" viewBox="0 0 24 24">
                 <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/>
@@ -399,7 +399,7 @@ const Auth: React.FC = () => {
         </div>
 
         <div className="mt-8 text-center">
-          <span className="text-gray-400">Already have an account? </span>
+          <span className="text-muted-foreground">Already have an account? </span>
           <button
             type="button"
             onClick={() => setCurrentView('signin')}
