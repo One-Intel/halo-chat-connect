@@ -255,7 +255,7 @@ const StatusFeed: React.FC = () => {
         <CreateStatusModal
           user={user || { id: "demo-user" }}
           onClose={() => setShowCreateModal(false)}
-          onPost={() => {}}
+          onPost={() => setShowCreateModal(false)}
         />
       )}
     </div>

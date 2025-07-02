@@ -1,32 +1,100 @@
 import React, { useState } from "react";
+import { X, Upload } from "lucide-react";
+import { Progress } from "@/components/ui/progress";
+import { useCreateStatus } from "@/services/statusService";
+import { uploadFile } from "@/services/fileUploadService";
+import { useAuth } from "@/contexts/AuthContext";
+import { toast } from "@/hooks/use-toast";
 
 const CreateStatusModal = ({ user, onClose, onPost }) => {
   // Option type for post options
   type OptionType = '' | 'media' | 'gif' | 'poll' | 'adoption' | 'event' | 'notice';
-  const [contentType, setContentType] = useState('image');
-  const [file, setFile] = useState(null);
+  const [files, setFiles] = useState<File[]>([]);
   const [caption, setCaption] = useState('');
   const [visibility, setVisibility] = useState('friends');
   const [uploading, setUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
   const [showOptions, setShowOptions] = useState<OptionType>('');
-  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [previewUrls, setPreviewUrls] = useState<string[]>([]);
+  
+  const { user: authUser } = useAuth();
+  const createStatus = useCreateStatus();
 
-  // Handle file preview
+  // Handle multiple file uploads
   const handleFileChange = (e) => {
-    const file = e.target.files[0];
-    setFile(file);
-    if (file) {
-      const url = URL.createObjectURL(file);
-      setPreviewUrl(url);
-    } else {
-      setPreviewUrl(null);
-    }
+    const selectedFiles = Array.from(e.target.files || []) as File[];
+    const newFiles = [...files, ...selectedFiles];
+    setFiles(newFiles);
+    
+    // Create preview URLs for new files
+    const newPreviewUrls = selectedFiles.map(file => URL.createObjectURL(file));
+    setPreviewUrls([...previewUrls, ...newPreviewUrls]);
   };
 
-  // Remove file and preview
-  const handleRemoveFile = () => {
-    setFile(null);
-    setPreviewUrl(null);
+  // Remove specific file
+  const handleRemoveFile = (index: number) => {
+    const newFiles = files.filter((_, i) => i !== index);
+    const newPreviews = previewUrls.filter((_, i) => i !== index);
+    
+    // Revoke the URL to prevent memory leaks
+    URL.revokeObjectURL(previewUrls[index]);
+    
+    setFiles(newFiles);
+    setPreviewUrls(newPreviews);
+  };
+
+  // Handle post submission
+  const handlePost = async () => {
+    if (!authUser || (!files.length && !caption.trim())) return;
+    
+    setUploading(true);
+    setUploadProgress(0);
+    
+    try {
+      let mediaUrls: string[] = [];
+      
+      // Upload files if any
+      if (files.length > 0) {
+        for (let i = 0; i < files.length; i++) {
+          const file = files[i];
+          const uploaded = await uploadFile({
+            bucket: 'status',
+            file,
+            userId: authUser.id,
+            folder: 'posts'
+          });
+          mediaUrls.push(uploaded.url);
+          setUploadProgress(((i + 1) / files.length) * 90); // 90% for upload, 10% for status creation
+        }
+      }
+      
+      // Create status
+      await createStatus.mutateAsync({
+        content: caption.trim() || undefined,
+        mediaUrl: mediaUrls.length > 0 ? mediaUrls[0] : undefined, // For now, just use first media
+        privacyLevel: visibility as 'public' | 'friends',
+        isPublic: visibility === 'public'
+      });
+      
+      setUploadProgress(100);
+      
+      toast({
+        title: "Status posted!",
+        description: "Your status has been shared successfully."
+      });
+      
+      onClose();
+    } catch (error) {
+      console.error('Error posting status:', error);
+      toast({
+        title: "Error",
+        description: "Failed to post status. Please try again.",
+        variant: "destructive"
+      });
+    } finally {
+      setUploading(false);
+      setUploadProgress(0);
+    }
   };
 
   return (
@@ -37,9 +105,9 @@ const CreateStatusModal = ({ user, onClose, onPost }) => {
           <button onClick={onClose} className="text-xl text-muted-foreground hover:text-primary transition">&times;</button>
           <span className="font-semibold text-lg text-foreground">Create Post</span>
           <button
-            onClick={onPost}
-            disabled={uploading || (!file && !caption)}
-            className={`rounded-full px-4 py-1 font-semibold text-sm ml-2 transition wispa-btn wispa-btn-primary ${(!file && !caption) ? 'opacity-50 cursor-not-allowed' : ''}`}
+            onClick={handlePost}
+            disabled={uploading || (!files.length && !caption.trim())}
+            className={`rounded-full px-4 py-1 font-semibold text-sm ml-2 transition bg-primary text-primary-foreground hover:bg-primary/90 ${(!files.length && !caption.trim()) ? 'opacity-50 cursor-not-allowed' : ''}`}
           >
             {uploading ? 'Posting...' : 'Post'}
           </button>
@@ -69,20 +137,53 @@ const CreateStatusModal = ({ user, onClose, onPost }) => {
           />
         </div>
 
-        {/* Post Preview */}
-        {previewUrl && (
+        {/* File Previews */}
+        {files.length > 0 && (
           <div className="px-4 pb-2">
-            {file?.type.startsWith('image') && (
-              <img src={previewUrl} alt="preview" className="max-h-48 rounded-lg border mb-2 mx-auto" />
-            )}
-            {file?.type.startsWith('video') && (
-              <video src={previewUrl} controls className="max-h-48 rounded-lg border mb-2 mx-auto" />
-            )}
-            {file?.type.startsWith('audio') && (
-              <audio src={previewUrl} controls className="w-full mb-2" />
-            )}
-            <div className="flex justify-end">
-              <button onClick={handleRemoveFile} className="text-xs text-destructive hover:underline">Remove</button>
+            <div className="grid gap-2">
+              {files.map((file, index) => (
+                <div key={index} className="relative border rounded-lg overflow-hidden">
+                  {file.type.startsWith('image') && (
+                    <img 
+                      src={previewUrls[index]} 
+                      alt="preview" 
+                      className="w-full max-h-48 object-cover" 
+                    />
+                  )}
+                  {file.type.startsWith('video') && (
+                    <video 
+                      src={previewUrls[index]} 
+                      controls 
+                      className="w-full max-h-48 object-cover" 
+                    />
+                  )}
+                  {file.type.startsWith('audio') && (
+                    <div className="p-4 bg-muted">
+                      <audio src={previewUrls[index]} controls className="w-full" />
+                      <p className="text-sm text-muted-foreground mt-2">{file.name}</p>
+                    </div>
+                  )}
+                  <button
+                    onClick={() => handleRemoveFile(index)}
+                    className="absolute top-2 right-2 bg-destructive text-destructive-foreground rounded-full p-1 hover:bg-destructive/90 transition"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Upload Progress */}
+        {uploading && (
+          <div className="px-4 pb-2">
+            <div className="space-y-2">
+              <div className="flex justify-between text-sm">
+                <span>Uploading...</span>
+                <span>{Math.round(uploadProgress)}%</span>
+              </div>
+              <Progress value={uploadProgress} className="h-2" />
             </div>
           </div>
         )}
@@ -139,9 +240,13 @@ const CreateStatusModal = ({ user, onClose, onPost }) => {
               <input
                 type="file"
                 accept="image/*,video/*,audio/*"
+                multiple
                 onChange={handleFileChange}
                 className="block w-full text-sm text-muted-foreground file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:text-sm file:bg-muted file:text-foreground"
               />
+              <p className="text-xs text-muted-foreground mt-1">
+                You can select multiple files (images, videos, audio)
+              </p>
             </div>
           )}
           {showOptions === 'gif' && (
