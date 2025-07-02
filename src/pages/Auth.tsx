@@ -1,28 +1,33 @@
 
 import React, { useState, useEffect } from 'react';
-import { Navigate } from 'react-router-dom';
+import { Navigate, useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { toast } from '@/components/ui/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Mail, Lock, User, Eye, EyeOff } from 'lucide-react';
+import { Checkbox } from '@/components/ui/checkbox';
+import { ArrowLeft, Mail, Lock, User, Eye, EyeOff } from 'lucide-react';
 import logo from '/wispachat logo.jpg';
 
 const Auth: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<"signin" | "signup">("signin");
+  const [currentView, setCurrentView] = useState<"signin" | "signup">("signin");
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [username, setUsername] = useState('');
   const [userId, setUserId] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [rememberMe, setRememberMe] = useState(false);
   const [loading, setLoading] = useState(false);
+  
+  const navigate = useNavigate();
 
   // Simple form validity check for button states
   const isFormValid =
     email.trim() !== '' &&
     password.trim() !== '' &&
-    (activeTab === 'signin' || username.trim() !== '');
+    (currentView === 'signin' || (username.trim() !== '' && confirmPassword.trim() !== '' && password === confirmPassword));
   
   const { user, signIn, signUp } = useAuth();
 
@@ -49,7 +54,15 @@ const Auth: React.FC = () => {
     setLoading(true);
 
     try {
-      if (activeTab === "signup") {
+      if (currentView === "signup") {
+        if (password !== confirmPassword) {
+          toast({
+            title: "Password Mismatch",
+            description: "Passwords do not match. Please try again.",
+            variant: "destructive"
+          });
+          return;
+        }
         console.log('Auth page - Starting signup process');
         await signUp(email, password, username, userId);
       } else {
@@ -75,208 +88,325 @@ const Auth: React.FC = () => {
     setShowPassword(!showPassword);
   };
 
-  return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-b from-wispa-50 to-wispa-100 dark:from-gray-900 dark:to-gray-800">
-      <div className="flex flex-col h-full">
-        <div className="flex-1 flex flex-col items-center justify-center p-6">
-          <div className="w-full max-w-md bg-white dark:bg-gray-900 shadow-xl rounded-xl p-8">
-            <div className="text-center mb-8">
-              <div className="flex justify-center mb-4">
-                <img src={logo} alt="WispaChat Logo" className="h-16 w-16 rounded-2xl shadow-lg border-4 border-white dark:border-gray-900 bg-white" />
-              </div>
-              <h1 className="text-3xl font-extrabold text-gray-900 dark:text-white tracking-tight">WispaChat</h1>
-              <p className="mt-2 text-gray-600 dark:text-gray-300 text-base">
-                {activeTab === "signup" ? 'Create your account' : 'Welcome back'}
-              </p>
+  const toggleConfirmPasswordVisibility = () => {
+    setShowConfirmPassword(!showConfirmPassword);
+  };
+
+  if (currentView === 'signin') {
+    return (
+      <div className="min-h-screen bg-gray-900 text-white flex flex-col">
+        {/* Header */}
+        <div className="flex items-center justify-between p-4 pt-12">
+          <button 
+            onClick={() => navigate('/')}
+            className="p-2 rounded-full hover:bg-gray-800 transition-colors"
+          >
+            <ArrowLeft className="w-6 h-6" />
+          </button>
+          <div className="flex items-center space-x-3">
+            <img src={logo} alt="WispaChat" className="w-8 h-8 rounded-lg" />
+            <span className="text-lg font-semibold text-primary">WispaChat</span>
+          </div>
+        </div>
+
+        {/* Content */}
+        <div className="flex-1 flex flex-col justify-center px-6 max-w-md mx-auto w-full">
+          <div className="mb-8">
+            <h1 className="text-3xl font-bold mb-2">Welcome back!</h1>
+          </div>
+
+          <form onSubmit={handleAuth} className="space-y-4">
+            <div className="relative">
+              <Mail className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+              <Input
+                type="email"
+                placeholder="Enter your email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                className="bg-gray-800 border-gray-700 text-white placeholder-gray-400 pl-12 py-4 rounded-2xl"
+                required
+              />
             </div>
 
-            <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as "signin" | "signup")} className="w-full">
-              <TabsList className="grid grid-cols-2 w-full mb-6">
-                <TabsTrigger value="signin">Sign In</TabsTrigger>
-                <TabsTrigger value="signup">Sign Up</TabsTrigger>
-              </TabsList>
-              
-              <TabsContent value="signin">
-                <form onSubmit={handleAuth} className="space-y-4">
-                  <div className="space-y-1">
-                    <label htmlFor="signin-email" className="block text-sm font-medium text-gray-700">Email</label>
-                    <div className="relative">
-                      <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500 h-5 w-5" />
-                      <Input 
-                        id="signin-email"
-                        type="email" 
-                        placeholder="name@example.com"
-                        value={email}
-                        onChange={e => setEmail(e.target.value)}
-                        className="pl-10"
-                        required
-                      />
-                    </div>
-                  </div>
+            <div className="relative">
+              <Lock className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+              <Input
+                type={showPassword ? "text" : "password"}
+                placeholder="Enter your password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className="bg-gray-800 border-gray-700 text-white placeholder-gray-400 pl-12 pr-12 py-4 rounded-2xl"
+                required
+              />
+              <button
+                type="button"
+                onClick={togglePasswordVisibility}
+                className="absolute right-4 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-white"
+              >
+                {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+              </button>
+            </div>
 
-                  <div className="space-y-1">
-                    <label htmlFor="signin-password" className="block text-sm font-medium text-gray-700">Password</label>
-                    <div className="relative">
-                      <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500 h-5 w-5" />
-                      <Input 
-                        id="signin-password"
-                        type={showPassword ? "text" : "password"}
-                        placeholder="••••••••"
-                        value={password}
-                        onChange={e => setPassword(e.target.value)}
-                        className="pl-10 pr-10"
-                        required
-                      />
-                      <button 
-                        type="button" 
-                        onClick={togglePasswordVisibility} 
-                        className="absolute right-3 top-1/2 transform -translate-y-1/2"
-                      >
-                        {showPassword ? 
-                          <EyeOff className="h-5 w-5 text-gray-500" /> : 
-                          <Eye className="h-5 w-5 text-gray-500" />
-                        }
-                      </button>
-                    </div>
-                  </div>
+            <div className="flex items-center justify-between mt-4">
+              <div className="flex items-center space-x-2">
+                <Checkbox 
+                  id="remember" 
+                  checked={rememberMe}
+                  onCheckedChange={(checked) => setRememberMe(!!checked)}
+                  className="border-gray-600"
+                />
+                <label htmlFor="remember" className="text-sm text-gray-300">
+                  Remember me
+                </label>
+              </div>
+              <button type="button" className="text-sm text-gray-400 hover:text-white">
+                Forgot password
+              </button>
+            </div>
 
-                  <Button 
-                    type="submit" 
-                    className="w-full bg-wispa-500 hover:bg-wispa-600"
-                    disabled={loading || !isFormValid}
-                  >
-                    {loading ? 'Signing in...' : 'Sign In'}
-                  </Button>
-                </form>
-              </TabsContent>
-              
-              <TabsContent value="signup">
-                <form onSubmit={handleAuth} className="space-y-4">
-                  <div className="space-y-1">
-                    <label htmlFor="username" className="block text-sm font-medium text-gray-700">Username</label>
-                    <div className="relative">
-                      <User className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500 h-5 w-5" />
-                      <Input 
-                        id="username"
-                        type="text" 
-                        placeholder="Your username"
-                        value={username}
-                        onChange={e => setUsername(e.target.value)}
-                        className="pl-10"
-                        required
-                      />
-                    </div>
-                  </div>
+            <Button
+              type="submit"
+              disabled={loading || !isFormValid}
+              className="w-full bg-primary hover:bg-primary/90 text-white py-4 rounded-2xl text-lg font-semibold mt-6"
+            >
+              {loading ? 'Signing in...' : 'Login'}
+            </Button>
+          </form>
 
-                  <div className="space-y-1">
-                    <label htmlFor="signup-email" className="block text-sm font-medium text-gray-700">Email</label>
-                    <div className="relative">
-                      <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500 h-5 w-5" />
-                      <Input 
-                        id="signup-email"
-                        type="email" 
-                        placeholder="name@example.com"
-                        value={email}
-                        onChange={e => setEmail(e.target.value)}
-                        className="pl-10"
-                        required
-                      />
-                    </div>
-                  </div>
-
-                  <div className="space-y-1">
-                    <label htmlFor="signup-password" className="block text-sm font-medium text-gray-700">Password</label>
-                    <div className="relative">
-                      <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500 h-5 w-5" />
-                      <Input 
-                        id="signup-password"
-                        type={showPassword ? "text" : "password"}
-                        placeholder="••••••••"
-                        value={password}
-                        onChange={e => setPassword(e.target.value)}
-                        className="pl-10 pr-10"
-                        required
-                      />
-                      <button 
-                        type="button" 
-                        onClick={togglePasswordVisibility} 
-                        className="absolute right-3 top-1/2 transform -translate-y-1/2"
-                      >
-                        {showPassword ? 
-                          <EyeOff className="h-5 w-5 text-gray-500" /> : 
-                          <Eye className="h-5 w-5 text-gray-500" />
-                        }
-                      </button>
-                    </div>
-                  </div>
-
-                  <div className="space-y-1">
-                    <div className="flex justify-between">
-                      <label htmlFor="userid" className="block text-sm font-medium text-gray-700">
-                        Your User ID
-                      </label>
-                      <button 
-                        type="button" 
-                        onClick={generateUserID} 
-                        className="text-xs text-wispa-600 hover:text-wispa-700"
-                      >
-                        Generate New
-                      </button>
-                    </div>
-                    <Input 
-                      id="userid"
-                      type="text" 
-                      value={userId}
-                      readOnly
-                      className="bg-gray-50 text-center font-mono text-lg"
-                    />
-                    <p className="text-xs text-gray-500">
-                      Save your user ID. You'll need it to connect with friends.
-                    </p>
-                  </div>
-
-                  <Button 
-                    type="submit" 
-                    className="w-full bg-wispa-500 hover:bg-wispa-600"
-                    disabled={loading || !isFormValid}
-                  >
-                    {loading ? 'Creating account...' : 'Create Account'}
-                  </Button>
-                </form>
-              </TabsContent>
-            </Tabs>
-
-            <div className="mt-6 relative">
+          <div className="mt-8">
+            <div className="relative mb-6">
               <div className="absolute inset-0 flex items-center">
-                <div className="w-full border-t border-gray-300"></div>
+                <div className="w-full border-t border-gray-700"></div>
               </div>
               <div className="relative flex justify-center text-sm">
-                <span className="px-2 bg-gray-50 text-gray-500">
-                  Or continue with
-                </span>
+                <span className="px-3 bg-gray-900 text-gray-400">Or</span>
               </div>
             </div>
 
-            <div className="mt-6">
-              <Button 
-                type="button" 
-                variant="outline" 
-                className="w-full opacity-50 cursor-not-allowed" 
+            <div className="space-y-3">
+              <Button
+                type="button"
+                variant="outline"
                 onClick={handleGoogleAuthClick}
                 disabled
+                className="w-full bg-gray-800 border-gray-700 text-white hover:bg-gray-700 py-4 rounded-2xl opacity-50"
               >
-                <svg viewBox="0 0 24 24" width="16" height="16" className="mr-2">
-                  <g transform="matrix(1, 0, 0, 1, 27.009001, -39.238998)">
-                    <path fill="#4285F4" d="M -3.264 51.509 C -3.264 50.719 -3.334 49.969 -3.454 49.239 L -14.754 49.239 L -14.754 53.749 L -8.284 53.749 C -8.574 55.229 -9.424 56.479 -10.684 57.329 L -10.684 60.329 L -6.824 60.329 C -4.564 58.239 -3.264 55.159 -3.264 51.509 Z"/>
-                    <path fill="#34A853" d="M -14.754 63.239 C -11.514 63.239 -8.804 62.159 -6.824 60.329 L -10.684 57.329 C -11.764 58.049 -13.134 58.489 -14.754 58.489 C -17.884 58.489 -20.534 56.379 -21.484 53.529 L -25.464 53.529 L -25.464 56.619 C -23.494 60.539 -19.444 63.239 -14.754 63.239 Z"/>
-                    <path fill="#FBBC05" d="M -21.484 53.529 C -21.734 52.809 -21.864 52.039 -21.864 51.239 C -21.864 50.439 -21.724 49.669 -21.484 48.949 L -21.484 45.859 L -25.464 45.859 C -26.284 47.479 -26.754 49.299 -26.754 51.239 C -26.754 53.179 -26.284 54.999 -25.464 56.619 L -21.484 53.529 Z"/>
-                    <path fill="#EA4335" d="M -14.754 43.989 C -12.984 43.989 -11.404 44.599 -10.154 45.789 L -6.734 42.369 C -8.804 40.429 -11.514 39.239 -14.754 39.239 C -19.444 39.239 -23.494 41.939 -25.464 45.859 L -21.484 48.949 C -20.534 46.099 -17.884 43.989 -14.754 43.989 Z"/>
-                  </g>
+                <svg className="w-5 h-5 mr-3" viewBox="0 0 24 24">
+                  <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+                  <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+                  <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
+                  <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
                 </svg>
-                Continue with Google (Coming Soon)
+                Google
+              </Button>
+
+              <Button
+                type="button"
+                variant="outline"
+                disabled
+                className="w-full bg-gray-800 border-gray-700 text-white hover:bg-gray-700 py-4 rounded-2xl opacity-50"
+              >
+                <svg className="w-5 h-5 mr-3" fill="#1877F2" viewBox="0 0 24 24">
+                  <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/>
+                </svg>
+                Facebook
               </Button>
             </div>
           </div>
+
+          <div className="mt-8 text-center">
+            <span className="text-gray-400">Don't have an account? </span>
+            <button
+              type="button"
+              onClick={() => setCurrentView('signup')}
+              className="text-primary hover:text-primary/80 font-medium"
+            >
+              Create an account
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-gray-900 text-white flex flex-col">
+      {/* Header */}
+      <div className="flex items-center justify-between p-4 pt-12">
+        <button 
+          onClick={() => setCurrentView('signin')}
+          className="p-2 rounded-full hover:bg-gray-800 transition-colors"
+        >
+          <ArrowLeft className="w-6 h-6" />
+        </button>
+        <div className="flex items-center space-x-3">
+          <img src={logo} alt="WispaChat" className="w-8 h-8 rounded-lg" />
+          <span className="text-lg font-semibold text-primary">WispaChat</span>
+        </div>
+      </div>
+
+      {/* Content */}
+      <div className="flex-1 flex flex-col justify-center px-6 max-w-md mx-auto w-full">
+        <div className="mb-8">
+          <h1 className="text-2xl font-bold mb-2 text-center">Sign up and Improve Your Chat Today</h1>
+        </div>
+
+        <form onSubmit={handleAuth} className="space-y-4">
+          <div className="relative">
+            <User className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+            <Input
+              type="text"
+              placeholder="Enter your name"
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+              className="bg-gray-800 border-gray-700 text-white placeholder-gray-400 pl-12 py-4 rounded-2xl"
+              required
+            />
+          </div>
+
+          <div className="relative">
+            <Mail className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+            <Input
+              type="email"
+              placeholder="Enter your email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              className="bg-gray-800 border-gray-700 text-white placeholder-gray-400 pl-12 py-4 rounded-2xl"
+              required
+            />
+          </div>
+
+          <div className="relative">
+            <Lock className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+            <Input
+              type={showPassword ? "text" : "password"}
+              placeholder="Enter your password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              className="bg-gray-800 border-gray-700 text-white placeholder-gray-400 pl-12 pr-12 py-4 rounded-2xl"
+              required
+            />
+            <button
+              type="button"
+              onClick={togglePasswordVisibility}
+              className="absolute right-4 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-white"
+            >
+              {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+            </button>
+          </div>
+
+          <div className="relative">
+            <Lock className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+            <Input
+              type={showConfirmPassword ? "text" : "password"}
+              placeholder="Enter your confirm password"
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
+              className="bg-gray-800 border-gray-700 text-white placeholder-gray-400 pl-12 pr-12 py-4 rounded-2xl"
+              required
+            />
+            <button
+              type="button"
+              onClick={toggleConfirmPasswordVisibility}
+              className="absolute right-4 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-white"
+            >
+              {showConfirmPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+            </button>
+          </div>
+
+          <div className="space-y-2">
+            <div className="flex justify-between items-center">
+              <label className="text-sm text-gray-300">Your User ID</label>
+              <button 
+                type="button" 
+                onClick={generateUserID} 
+                className="text-xs text-primary hover:text-primary/80"
+              >
+                Generate New
+              </button>
+            </div>
+            <Input 
+              type="text" 
+              value={userId}
+              readOnly
+              className="bg-gray-700 border-gray-600 text-white text-center font-mono py-4 rounded-2xl"
+            />
+            <p className="text-xs text-gray-400 text-center">
+              Save your user ID. You'll need it to connect with friends.
+            </p>
+          </div>
+
+          <div className="flex items-center space-x-2 mt-4">
+            <Checkbox 
+              id="remember-signup" 
+              checked={rememberMe}
+              onCheckedChange={(checked) => setRememberMe(!!checked)}
+              className="border-gray-600"
+            />
+            <label htmlFor="remember-signup" className="text-sm text-gray-300">
+              Remember me
+            </label>
+          </div>
+
+          <Button
+            type="submit"
+            disabled={loading || !isFormValid}
+            className="w-full bg-primary hover:bg-primary/90 text-white py-4 rounded-2xl text-lg font-semibold mt-6"
+          >
+            {loading ? 'Creating account...' : 'Sign up'}
+          </Button>
+        </form>
+
+        <div className="mt-8">
+          <div className="relative mb-6">
+            <div className="absolute inset-0 flex items-center">
+              <div className="w-full border-t border-gray-700"></div>
+            </div>
+            <div className="relative flex justify-center text-sm">
+              <span className="px-3 bg-gray-900 text-gray-400">Or</span>
+            </div>
+          </div>
+
+          <div className="space-y-3">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={handleGoogleAuthClick}
+              disabled
+              className="w-full bg-gray-800 border-gray-700 text-white hover:bg-gray-700 py-4 rounded-2xl opacity-50"
+            >
+              <svg className="w-5 h-5 mr-3" viewBox="0 0 24 24">
+                <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+                <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+                <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
+                <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
+              </svg>
+              Google
+            </Button>
+
+            <Button
+              type="button"
+              variant="outline"
+              disabled
+              className="w-full bg-gray-800 border-gray-700 text-white hover:bg-gray-700 py-4 rounded-2xl opacity-50"
+            >
+              <svg className="w-5 h-5 mr-3" fill="#1877F2" viewBox="0 0 24 24">
+                <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/>
+              </svg>
+              Facebook
+            </Button>
+          </div>
+        </div>
+
+        <div className="mt-8 text-center">
+          <span className="text-gray-400">Already have an account? </span>
+          <button
+            type="button"
+            onClick={() => setCurrentView('signin')}
+            className="text-primary hover:text-primary/80 font-medium"
+          >
+            Login
+          </button>
         </div>
       </div>
     </div>
