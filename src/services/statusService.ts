@@ -300,8 +300,8 @@ export function useInfiniteStatusUpdates(pageSize = 10, viewMode = 'friends') {
       if (viewMode === 'public') {
         query = query.eq('is_public', true).eq('privacy_level', 'public');
       } else if (viewMode === 'friends' && user) {
-        // This is a simplified version - in production you'd want to optimize this
-        query = query.or(`is_public.eq.true,privacy_level.eq.friends`);
+        // Show public posts and user's own posts (including friends-only)
+        query = query.or(`is_public.eq.true,user_id.eq.${user.id}`);
       }
       
       const { data, error } = await query;

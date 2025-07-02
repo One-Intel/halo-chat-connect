@@ -13,23 +13,24 @@ const ProfileStatusDashboard: React.FC = () => {
     const fetchMyStatuses = async () => {
       const { data, error } = await supabase
         .from('status_updates')
-        .select(`*, status_views(count), status_reactions(reaction_type), status_comments(comment)`)
+        .select(`
+          id, content, created_at, expires_at, is_public, privacy_level,
+          comment_count, share_count,
+          status_views(id),
+          status_reactions(id),
+          status_comments(id)
+        `)
         .eq('user_id', user.id)
         .order('created_at', { ascending: false });
-      if (!error) setMyStatuses(data);
+      if (!error) setMyStatuses(data || []);
     };
     fetchMyStatuses();
   }, [user.id]);
 
   return (
-    <div className="flex flex-col p-4 bg-white min-h-screen">
+    <div className="flex flex-col p-4 bg-background min-h-screen">
       <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center mb-4 gap-2">
-        <h2 className="text-xl font-bold">My Statuses</h2>
-        <Link to="/profile/status-dashboard">
-          <Button className="bg-[#ff6200] hover:bg-[#ff7f32] text-white rounded-full px-6 py-2 shadow">
-            My Status Dashboard
-          </Button>
-        </Link>
+        <h2 className="text-xl font-bold text-foreground">My Statuses</h2>
         <Link to="/profile">
           <Button variant="outline" className="rounded-full px-4 py-1 text-sm">Back to Profile</Button>
         </Link>
@@ -38,27 +39,29 @@ const ProfileStatusDashboard: React.FC = () => {
         {myStatuses.length === 0 ? (
           <div className="col-span-2 flex items-center justify-center h-32 text-muted-foreground text-lg">No statuses yet.</div>
         ) : myStatuses.map((status) => (
-          <div key={status.id} className="border border-border rounded-lg p-2 bg-card shadow hover:shadow-lg transition flex flex-col">
-            {status.content_type === 'image' && (
-              <img src={status.content_url} alt="Status" className="w-full h-32 object-cover rounded mb-2" />
-            )}
-            {status.content_type === 'video' && (
-              <video className="w-full h-32 object-cover rounded mb-2" controls>
-                <source src={status.content_url} type="video/mp4" />
-              </video>
-            )}
-            {status.content_type === 'audio' && (
-              <audio controls className="w-full mb-2">
-                <source src={status.content_url} type="audio/mp3" />
-              </audio>
-            )}
-            <p className="mt-1 text-sm font-medium text-primary truncate">{status.caption}</p>
-            <div className="flex gap-4 mt-2 text-xs text-muted-foreground">
-              <span>Views: {status.status_views.length}</span>
-              <span>Reactions: {status.status_reactions.length}</span>
-              <span>Comments: {status.status_comments.length}</span>
+          <div key={status.id} className="border border-border rounded-lg p-4 bg-card shadow hover:shadow-md transition flex flex-col">
+            <div className="flex items-center justify-between mb-2">
+              <span className={`text-xs px-2 py-1 rounded-full ${
+                status.privacy_level === 'public' 
+                  ? 'bg-primary/10 text-primary' 
+                  : 'bg-muted text-muted-foreground'
+              }`}>
+                {status.privacy_level === 'public' ? 'Public' : 'Friends'}
+              </span>
+              <span className="text-xs text-muted-foreground">
+                {new Date(status.created_at).toLocaleDateString()}
+              </span>
             </div>
-            <p className="text-xs text-gray-500 mt-1">{new Date(status.created_at).toLocaleDateString()}</p>
+            
+            {status.content && (
+              <p className="text-sm text-foreground mb-3 line-clamp-3">{status.content}</p>
+            )}
+            
+            <div className="flex gap-4 text-xs text-muted-foreground mt-auto">
+              <span>Views: {status.status_views?.length || 0}</span>
+              <span>Reactions: {status.status_reactions?.length || 0}</span>
+              <span>Comments: {status.comment_count || 0}</span>
+            </div>
           </div>
         ))}
       </div>

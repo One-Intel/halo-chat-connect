@@ -65,25 +65,25 @@ const StatusFeed: React.FC = () => {
   };
 
   return (
-    <div className="flex flex-col h-screen bg-background dark:bg-gray-900">
-      <header className="flex justify-between items-center p-4 bg-white dark:bg-gray-900 shadow-sm sticky top-0 z-10 border-b border-border">
+    <div className="flex flex-col h-screen bg-background">
+      <header className="flex justify-between items-center p-4 bg-background shadow-sm sticky top-0 z-10 border-b border-border">
         <h2 className="text-xl font-bold text-foreground">Status</h2>
         <div className="flex gap-4">
           <button
             onClick={() => setShowCreateModal(true)}
-            className="bg-wispa-500 hover:bg-wispa-600 text-white px-4 py-2 rounded-full shadow transition-colors"
+            className="bg-primary hover:bg-primary/90 text-primary-foreground px-4 py-2 rounded-full shadow transition-colors"
           >
             Create Status
           </button>
         </div>
       </header>
       
-      <div className="flex border-b border-border sticky top-[64px] z-10 bg-white dark:bg-gray-900">
+      <div className="flex border-b border-border sticky top-[64px] z-10 bg-background">
         <button
           className={`flex-1 py-3 font-semibold transition-all duration-200 ${
             viewMode === 'friends' 
-              ? 'bg-wispa-500 text-white shadow-sm' 
-              : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+              ? 'bg-primary text-primary-foreground shadow-sm' 
+              : 'bg-muted text-muted-foreground hover:bg-muted/80'
           }`}
           onClick={() => setViewMode('friends')}
         >
@@ -92,8 +92,8 @@ const StatusFeed: React.FC = () => {
         <button
           className={`flex-1 py-3 font-semibold transition-all duration-200 ${
             viewMode === 'public' 
-              ? 'bg-wispa-500 text-white shadow-sm' 
-              : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+              ? 'bg-primary text-primary-foreground shadow-sm' 
+              : 'bg-muted text-muted-foreground hover:bg-muted/80'
           }`}
           onClick={() => setViewMode('public')}
         >
@@ -102,11 +102,11 @@ const StatusFeed: React.FC = () => {
       </div>
       
       {/* Facebook-like Story Bar */}
-      <div className="sticky top-[112px] z-10 bg-background dark:bg-gray-900 px-4 py-2 border-b border-border">
+      <div className="sticky top-[112px] z-10 bg-background px-4 py-2 border-b border-border">
         <StatusStoryBar />
       </div>
       
-      <div className="flex-1 overflow-y-auto px-0 pb-4 bg-background dark:bg-gray-900">
+      <div className="flex-1 overflow-y-auto px-0 pb-4 bg-background">
         {/* Enhanced Status Feed */}
         <div className="flex flex-col gap-2 px-2 pt-2">
           {statuses.length === 0 && status === 'success' ? (
@@ -115,7 +115,7 @@ const StatusFeed: React.FC = () => {
             </div>
           ) : (
             statuses.map((status, idx) => (
-              <div key={status.id || idx} className="bg-white dark:bg-gray-800 border border-border rounded-xl shadow-sm hover:shadow-md transition-all duration-200 p-0 overflow-hidden mb-2">
+              <div key={status.id || idx} className="bg-card border border-border rounded-xl shadow-sm hover:shadow-md transition-all duration-200 p-0 overflow-hidden mb-2">
                 {/* Status Header */}
                 <div className="flex items-start justify-between p-4 pb-2">
                   <div className="flex items-center gap-3 flex-1">
@@ -188,7 +188,7 @@ const StatusFeed: React.FC = () => {
                 )}
                 
                 {/* Status Stats */}
-                <div className="px-4 py-2 flex items-center justify-between text-sm text-muted-foreground border-t border-gray-100 dark:border-gray-700">
+                <div className="px-4 py-2 flex items-center justify-between text-sm text-muted-foreground border-t border-border">
                   <div className="flex items-center gap-4">
                     <span className="flex items-center gap-1">
                       <Eye className="h-4 w-4" />
@@ -205,18 +205,18 @@ const StatusFeed: React.FC = () => {
                 </div>
                 
                 {/* Action Buttons */}
-                <div className="px-4 py-2 flex gap-2 border-t border-gray-100 dark:border-gray-700">
+                <div className="px-4 py-2 flex gap-2 border-t border-border">
                   <Button 
                     variant="ghost" 
                     size="sm" 
-                    className="flex-1 text-xs hover:bg-wispa-50 hover:text-wispa-600 transition-colors"
+                    className="flex-1 text-xs hover:bg-primary/10 hover:text-primary transition-colors"
                   >
                     👍 Like
                   </Button>
                   <Button 
                     variant="ghost" 
                     size="sm" 
-                    className="flex-1 text-xs hover:bg-wispa-50 hover:text-wispa-600 transition-colors"
+                    className="flex-1 text-xs hover:bg-primary/10 hover:text-primary transition-colors"
                     onClick={() => toggleComments(status.id)}
                   >
                     <MessageCircle className="h-4 w-4 mr-1" />
@@ -225,7 +225,7 @@ const StatusFeed: React.FC = () => {
                   <Button 
                     variant="ghost" 
                     size="sm" 
-                    className="flex-1 text-xs hover:bg-wispa-50 hover:text-wispa-600 transition-colors"
+                    className="flex-1 text-xs hover:bg-primary/10 hover:text-primary transition-colors"
                     onClick={() => handleShare(status.id)}
                   >
                     <Share className="h-4 w-4 mr-1" />
@@ -235,7 +235,7 @@ const StatusFeed: React.FC = () => {
                 
                 {/* Comments Section */}
                 {expandedComments.has(status.id) && (
-                  <div className="border-t border-gray-100 dark:border-gray-700 p-4 bg-gray-50 dark:bg-gray-900/50">
+                  <div className="border-t border-border p-4 bg-muted/30">
                     <StatusComments statusId={status.id} />
                   </div>
                 )}
