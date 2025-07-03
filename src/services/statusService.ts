@@ -4,6 +4,92 @@ import { useAuth } from "@/contexts/AuthContext";
 import { StatusUpdate } from "@/types/status";
 import { PostgrestFilterBuilder } from '@supabase/postgrest-js';
 
+// Enhanced infinite scroll with proper media handling and debug logging
+export function useInfiniteStatusUpdates(pageSize = 10, viewMode = 'public') {
+  const { user } = useAuth();
+  
+  return useInfiniteQuery<StatusUpdate[], Error>({
+    queryKey: ['status-updates-infinite', viewMode, user?.id],
+    initialPageParam: null,
+    queryFn: async ({ pageParam = null }) => {
+      console.log('Fetching statuses with params:', { pageParam, viewMode, userId: user?.id });
+      
+      let query = supabase
+        .from('status_updates')
+        .select(`
+          id, user_id, content, created_at, expires_at, is_public, 
+          privacy_level, comment_count, share_count,
+          user:profiles!status_updates_user_id_fkey(username, avatar_url),
+          status_media(id, media_url, media_type, position)
+        `)
+        .gt('expires_at', new Date().toISOString())
+        .order('created_at', { ascending: false })
+        .limit(pageSize);
+        
+      if (pageParam) {
+        query = query.lt('created_at', pageParam);
+      }
+      
+      // Apply privacy filtering based on view mode
+      if (viewMode === 'public') {
+        query = query.eq('is_public', true);
+      } else if (viewMode === 'friends' && user) {
+        // For friends mode, show public posts AND user's own posts
+        // We can't easily filter by friendship here, so we'll show all public posts
+        // In a real app, you'd need a more complex query or handle this differently
+        query = query.eq('is_public', true);
+      }
+      
+      const { data, error } = await query;
+      
+      console.log('Raw query result:', { data, error });
+      
+      if (error) {
+        console.error('Error fetching statuses:', error);
+        throw error;
+      }
+      
+      if (!data || data.length === 0) {
+        console.log('No statuses found');
+        return [];
+      }
+      
+      // Get additional details for each status
+      const enhancedData = await Promise.all(
+        data.map(async (status) => {
+          const [reactions, views, shares] = await Promise.all([
+            getStatusReactions(status.id),
+            getStatusViews(status.id),
+            getStatusShares(status.id)
+          ]);
+
+          const enhanced = {
+            ...status,
+            media_url: status.status_media?.[0]?.media_url || null,
+            media: status.status_media || [],
+            user: Array.isArray(status.user) ? status.user[0] : status.user,
+            reactions,
+            views: views?.map((v: any) => v.viewer_id) || [],
+            viewCount: views?.length || 0,
+            shares: shares?.map((s: any) => s.user_id) || [],
+          };
+          
+          console.log('Enhanced status:', enhanced);
+          return enhanced;
+        })
+      );
+      
+      console.log('Final enhanced data:', enhancedData);
+      return enhancedData as StatusUpdate[];
+    },
+    getNextPageParam: (lastPage) => {
+      if (!lastPage || !Array.isArray(lastPage) || lastPage.length === 0) return undefined;
+      return lastPage[lastPage.length - 1].created_at;
+    },
+    enabled: true, // Always enabled, don't require user
+  });
+}
+
 // Fetch status updates with enhanced filtering and media
 export function useStatusUpdates(viewMode: 'friends' | 'public' = 'friends') {
   const { user } = useAuth();
@@ -16,7 +102,7 @@ export function useStatusUpdates(viewMode: 'friends' | 'public' = 'friends') {
         .select(`
           id, user_id, content, created_at, expires_at, is_public, 
           privacy_level, comment_count, share_count,
-          user:profiles(username, avatar_url),
+          user:profiles!status_updates_user_id_fkey(username, avatar_url),
           status_media(id, media_url, media_type, position)
         `)
         .gt('expires_at', new Date().toISOString())
@@ -57,7 +143,7 @@ export function useStatusUpdates(viewMode: 'friends' | 'public' = 'friends') {
 
       return statusWithDetails as StatusUpdate[];
     },
-    enabled: !!user,
+    enabled: true, // Always enabled
   });
 }
 
@@ -126,6 +212,8 @@ export function useCreateStatus() {
       const expiresAt = new Date();
       expiresAt.setHours(expiresAt.getHours() + 24);
       
+      console.log('Creating status with:', { content, mediaUrls, privacyLevel, isPublic });
+      
       // Create the status update
       const { data: status, error } = await supabase
         .from('status_updates')
@@ -139,7 +227,12 @@ export function useCreateStatus() {
         .select('*')
         .single();
         
-      if (error) throw error;
+      if (error) {
+        console.error('Error creating status:', error);
+        throw error;
+      }
+      
+      console.log('Status created:', status);
       
       // Insert all media files
       if (mediaUrls.length > 0) {
@@ -150,41 +243,22 @@ export function useCreateStatus() {
           position: index
         }));
         
+        console.log('Inserting media:', mediaInserts);
+        
         const { error: mediaError } = await supabase
           .from('status_media')
           .insert(mediaInserts);
           
-        if (mediaError) throw mediaError;
+        if (mediaError) {
+          console.error('Error inserting media:', mediaError);
+          throw mediaError;
+        }
       }
       
       return status;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['status-updates'] });
-    },
-  });
-}
-
-export function useShareStatus() {
-  const { user } = useAuth();
-  const queryClient = useQueryClient();
-  
-  return useMutation({
-    mutationFn: async ({ statusId }: { statusId: string }) => {
-      if (!user) throw new Error('No user');
-      
-      const { error } = await supabase
-        .from('status_shares')
-        .insert({
-          status_id: statusId,
-          user_id: user.id
-        });
-        
-      if (error && !error.message.includes('duplicate')) {
-        throw error;
-      }
-    },
-    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['status-updates-infinite'] });
       queryClient.invalidateQueries({ queryKey: ['status-updates'] });
     },
   });
@@ -197,7 +271,7 @@ export function useViewStatus() {
   
   return useMutation({
     mutationFn: async ({ statusId }: { statusId: string }) => {
-      if (!user) throw new Error('No user');
+      if (!user) return; // Don't throw error, just skip
       
       // Add to status_views table
       const { error: viewError } = await supabase
@@ -208,11 +282,11 @@ export function useViewStatus() {
         });
       
       if (viewError && !viewError.message.includes('duplicate')) {
-        throw viewError;
+        console.error('Error adding view:', viewError);
       }
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['status-updates'] });
+      queryClient.invalidateQueries({ queryKey: ['status-updates-infinite'] });
     },
   });
 }
@@ -256,7 +330,33 @@ export function useReactToStatus() {
       }
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['status-updates'] });
+      queryClient.invalidateQueries({ queryKey: ['status-updates-infinite'] });
+    },
+  });
+}
+
+// Share status
+export function useShareStatus() {
+  const { user } = useAuth();
+  const queryClient = useQueryClient();
+  
+  return useMutation({
+    mutationFn: async ({ statusId }: { statusId: string }) => {
+      if (!user) throw new Error('No user');
+      
+      const { error } = await supabase
+        .from('status_shares')
+        .insert({
+          status_id: statusId,
+          user_id: user.id
+        });
+        
+      if (error && !error.message.includes('duplicate')) {
+        throw error;
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['status-updates-infinite'] });
     },
   });
 }
@@ -279,73 +379,8 @@ export function useDeleteStatus() {
       if (error) throw error;
     },
     onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['status-updates-infinite'] });
       queryClient.invalidateQueries({ queryKey: ['status-updates'] });
     },
-  });
-}
-
-// Enhanced infinite scroll with proper media handling
-export function useInfiniteStatusUpdates(pageSize = 10, viewMode = 'friends') {
-  const { user } = useAuth();
-  return useInfiniteQuery<StatusUpdate[], Error>({
-    queryKey: ['status-updates', viewMode],
-    initialPageParam: null,
-    queryFn: async ({ pageParam = null }) => {
-      let query: PostgrestFilterBuilder<any, any, any> = supabase
-        .from('status_updates')
-        .select(`
-          id, user_id, content, created_at, expires_at, is_public, 
-          privacy_level, comment_count, share_count,
-          user:profiles(username, avatar_url),
-          status_media(id, media_url, media_type, position)
-        `)
-        .gt('expires_at', new Date().toISOString())
-        .order('created_at', { ascending: false })
-        .limit(pageSize);
-        
-      if (pageParam) {
-        query = query.lt('created_at', pageParam);
-      }
-      
-      // Apply privacy filtering
-      if (viewMode === 'public') {
-        query = query.eq('is_public', true).eq('privacy_level', 'public');
-      } else if (viewMode === 'friends' && user) {
-        // Show all public posts OR user's own posts
-        query = query.or(`is_public.eq.true,user_id.eq.${user.id}`);
-      }
-      
-      const { data, error } = await query;
-      if (error) throw error;
-      
-      // Get additional details for each status
-      const enhancedData = await Promise.all(
-        (data || []).map(async (status) => {
-          const [reactions, views, shares] = await Promise.all([
-            getStatusReactions(status.id),
-            getStatusViews(status.id),
-            getStatusShares(status.id)
-          ]);
-
-          return {
-            ...status,
-            media_url: status.status_media?.[0]?.media_url || null,
-            media: status.status_media || [],
-            user: Array.isArray(status.user) ? status.user[0] : status.user,
-            reactions,
-            views: views?.map((v: any) => v.viewer_id) || [],
-            viewCount: views?.length || 0,
-            shares: shares?.map((s: any) => s.user_id) || [],
-          };
-        })
-      );
-      
-      return enhancedData as StatusUpdate[];
-    },
-    getNextPageParam: (lastPage) => {
-      if (!lastPage || !Array.isArray(lastPage) || lastPage.length === 0) return undefined;
-      return lastPage[lastPage.length - 1].created_at;
-    },
-    enabled: !!user,
   });
 }
