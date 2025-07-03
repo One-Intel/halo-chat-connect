@@ -14,12 +14,12 @@ export function useInfiniteStatusUpdates(pageSize = 10, viewMode = 'public') {
     queryFn: async ({ pageParam = null }) => {
       console.log('Fetching statuses with params:', { pageParam, viewMode, userId: user?.id });
       
+      // First, fetch status updates without the problematic foreign key hint
       let query = supabase
         .from('status_updates')
         .select(`
           id, user_id, content, created_at, expires_at, is_public, 
           privacy_level, comment_count, share_count,
-          user:profiles!status_updates_user_id_fkey(username, avatar_url),
           status_media(id, media_url, media_type, position)
         `)
         .gt('expires_at', new Date().toISOString())
@@ -40,23 +40,45 @@ export function useInfiniteStatusUpdates(pageSize = 10, viewMode = 'public') {
         query = query.eq('is_public', true);
       }
       
-      const { data, error } = await query;
+      const { data: statusData, error } = await query;
       
-      console.log('Raw query result:', { data, error });
+      console.log('Raw status query result:', { data: statusData, error });
       
       if (error) {
         console.error('Error fetching statuses:', error);
         throw error;
       }
       
-      if (!data || data.length === 0) {
+      if (!statusData || statusData.length === 0) {
         console.log('No statuses found');
         return [];
       }
       
+      // Get unique user IDs from the statuses
+      const userIds = [...new Set(statusData.map(status => status.user_id))];
+      
+      // Fetch user profiles separately
+      const { data: profilesData, error: profilesError } = await supabase
+        .from('profiles')
+        .select('id, username, avatar_url')
+        .in('id', userIds);
+        
+      if (profilesError) {
+        console.error('Error fetching profiles:', profilesError);
+        // Continue without profiles rather than failing completely
+      }
+      
+      console.log('Profiles data:', profilesData);
+      
+      // Create a map of user profiles for quick lookup
+      const userProfiles = (profilesData || []).reduce((acc, profile) => {
+        acc[profile.id] = profile;
+        return acc;
+      }, {} as Record<string, any>);
+      
       // Get additional details for each status
       const enhancedData = await Promise.all(
-        data.map(async (status) => {
+        statusData.map(async (status) => {
           const [reactions, views, shares] = await Promise.all([
             getStatusReactions(status.id),
             getStatusViews(status.id),
@@ -67,7 +89,7 @@ export function useInfiniteStatusUpdates(pageSize = 10, viewMode = 'public') {
             ...status,
             media_url: status.status_media?.[0]?.media_url || null,
             media: status.status_media || [],
-            user: Array.isArray(status.user) ? status.user[0] : status.user,
+            user: userProfiles[status.user_id] || { username: 'Unknown', avatar_url: null },
             reactions,
             views: views?.map((v: any) => v.viewer_id) || [],
             viewCount: views?.length || 0,
@@ -97,12 +119,12 @@ export function useStatusUpdates(viewMode: 'friends' | 'public' = 'friends') {
   return useQuery({
     queryKey: ['status-updates', viewMode],
     queryFn: async () => {
+      // Fetch status updates without the problematic foreign key hint
       let query = supabase
         .from('status_updates')
         .select(`
           id, user_id, content, created_at, expires_at, is_public, 
           privacy_level, comment_count, share_count,
-          user:profiles!status_updates_user_id_fkey(username, avatar_url),
           status_media(id, media_url, media_type, position)
         `)
         .gt('expires_at', new Date().toISOString())
@@ -116,12 +138,36 @@ export function useStatusUpdates(viewMode: 'friends' | 'public' = 'friends') {
         query = query.or(`is_public.eq.true,user_id.eq.${user.id}`);
       }
         
-      const { data, error } = await query;
+      const { data: statusData, error } = await query;
       if (error) throw error;
+      
+      if (!statusData || statusData.length === 0) {
+        return [];
+      }
+      
+      // Get unique user IDs from the statuses
+      const userIds = [...new Set(statusData.map(status => status.user_id))];
+      
+      // Fetch user profiles separately
+      const { data: profilesData, error: profilesError } = await supabase
+        .from('profiles')
+        .select('id, username, avatar_url')
+        .in('id', userIds);
+        
+      if (profilesError) {
+        console.error('Error fetching profiles:', profilesError);
+        // Continue without profiles rather than failing completely
+      }
+      
+      // Create a map of user profiles for quick lookup
+      const userProfiles = (profilesData || []).reduce((acc, profile) => {
+        acc[profile.id] = profile;
+        return acc;
+      }, {} as Record<string, any>);
       
       // Get reactions, views, and other details for each status
       const statusWithDetails = await Promise.all(
-        (data || []).map(async (status) => {
+        statusData.map(async (status) => {
           const [reactions, views, shares] = await Promise.all([
             getStatusReactions(status.id),
             getStatusViews(status.id),
@@ -132,7 +178,7 @@ export function useStatusUpdates(viewMode: 'friends' | 'public' = 'friends') {
             ...status,
             media_url: status.status_media?.[0]?.media_url || null,
             media: status.status_media || [],
-            user: Array.isArray(status.user) ? status.user[0] : status.user,
+            user: userProfiles[status.user_id] || { username: 'Unknown', avatar_url: null },
             reactions,
             views: views?.map((v: any) => v.viewer_id) || [],
             viewCount: views?.length || 0,
