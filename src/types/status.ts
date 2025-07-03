@@ -6,6 +6,13 @@ export interface StatusUser {
   avatar_url: string | null;
 }
 
+export interface StatusMedia {
+  id: string;
+  media_url: string;
+  media_type: string;
+  position: number;
+}
+
 export interface StatusComment {
   id: string;
   status_id: string;
@@ -36,6 +43,7 @@ export interface StatusUpdate {
   user: StatusUser;
   comments?: StatusComment[];
   shares?: string[];
+  media?: StatusMedia[];
 }
 
 export interface TempChatSession {

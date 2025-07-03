@@ -43,7 +43,7 @@ const CreateStatusModal = ({ user, onClose, onPost }) => {
     setPreviewUrls(newPreviews);
   };
 
-  // Handle post submission
+  // Enhanced post submission with multiple media
   const handlePost = async () => {
     if (!authUser || (!files.length && !caption.trim())) return;
     
@@ -51,9 +51,9 @@ const CreateStatusModal = ({ user, onClose, onPost }) => {
     setUploadProgress(0);
     
     try {
-      let mediaUrls: string[] = [];
+      let mediaUrls: { url: string; type: string }[] = [];
       
-      // Upload files if any
+      // Upload all files
       if (files.length > 0) {
         for (let i = 0; i < files.length; i++) {
           const file = files[i];
@@ -63,15 +63,22 @@ const CreateStatusModal = ({ user, onClose, onPost }) => {
             userId: authUser.id,
             folder: 'posts'
           });
-          mediaUrls.push(uploaded.url);
+          
+          // Determine media type
+          let mediaType = 'image';
+          if (file.type.startsWith('video/')) mediaType = 'video';
+          else if (file.type.startsWith('audio/')) mediaType = 'audio';
+          else if (file.type.startsWith('application/') || file.type.startsWith('text/')) mediaType = 'document';
+          
+          mediaUrls.push({ url: uploaded.url, type: mediaType });
           setUploadProgress(((i + 1) / files.length) * 90); // 90% for upload, 10% for status creation
         }
       }
       
-      // Create status
+      // Create status with all media
       await createStatus.mutateAsync({
         content: caption.trim() || undefined,
-        mediaUrl: mediaUrls.length > 0 ? mediaUrls[0] : undefined, // For now, just use first media
+        mediaUrls,
         privacyLevel: visibility as 'public' | 'friends',
         isPublic: visibility === 'public'
       });
@@ -83,6 +90,7 @@ const CreateStatusModal = ({ user, onClose, onPost }) => {
         description: "Your status has been shared successfully."
       });
       
+      onPost();
       onClose();
     } catch (error) {
       console.error('Error posting status:', error);
@@ -99,7 +107,7 @@ const CreateStatusModal = ({ user, onClose, onPost }) => {
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white dark:bg-gray-900 rounded-2xl w-full max-w-md shadow-2xl border border-border flex flex-col animate-fade-in">
+      <div className="bg-background rounded-2xl w-full max-w-md shadow-2xl border border-border flex flex-col animate-fade-in">
         {/* Header */}
         <div className="flex items-center justify-between px-4 pt-4 pb-2 border-b border-border">
           <button onClick={onClose} className="text-xl text-muted-foreground hover:text-primary transition">&times;</button>
@@ -118,7 +126,7 @@ const CreateStatusModal = ({ user, onClose, onPost }) => {
           {/* Avatar */}
           <div className="h-10 w-10">
             {/* You can use your Avatar component here if you want */}
-            <img src={user?.avatar_url || '/placeholder.svg'} alt="avatar" className="h-10 w-10 rounded-full object-cover bg-gray-200" />
+            <img src={user?.avatar_url || '/placeholder.svg'} alt="avatar" className="h-10 w-10 rounded-full object-cover bg-muted" />
           </div>
           <div className="flex flex-col">
             <span className="font-medium text-foreground">{user?.username || 'You'}</span>
@@ -137,30 +145,37 @@ const CreateStatusModal = ({ user, onClose, onPost }) => {
           />
         </div>
 
-        {/* File Previews */}
+        {/* Enhanced File Previews with Grid Layout */}
         {files.length > 0 && (
           <div className="px-4 pb-2">
-            <div className="grid gap-2">
+            <div className={`grid gap-2 ${files.length === 1 ? 'grid-cols-1' : files.length === 2 ? 'grid-cols-2' : 'grid-cols-2'}`}>
               {files.map((file, index) => (
-                <div key={index} className="relative border rounded-lg overflow-hidden">
+                <div key={index} className="relative border rounded-lg overflow-hidden bg-muted">
                   {file.type.startsWith('image') && (
                     <img 
                       src={previewUrls[index]} 
                       alt="preview" 
-                      className="w-full max-h-48 object-cover" 
+                      className="w-full h-32 object-cover" 
                     />
                   )}
                   {file.type.startsWith('video') && (
                     <video 
                       src={previewUrls[index]} 
                       controls 
-                      className="w-full max-h-48 object-cover" 
+                      className="w-full h-32 object-cover" 
                     />
                   )}
                   {file.type.startsWith('audio') && (
-                    <div className="p-4 bg-muted">
-                      <audio src={previewUrls[index]} controls className="w-full" />
-                      <p className="text-sm text-muted-foreground mt-2">{file.name}</p>
+                    <div className="p-4 bg-muted flex flex-col items-center">
+                      <div className="text-2xl mb-2">🎵</div>
+                      <audio src={previewUrls[index]} controls className="w-full text-xs" />
+                      <p className="text-xs text-muted-foreground mt-1 truncate w-full text-center">{file.name}</p>
+                    </div>
+                  )}
+                  {!file.type.startsWith('image') && !file.type.startsWith('video') && !file.type.startsWith('audio') && (
+                    <div className="p-4 bg-muted flex flex-col items-center justify-center h-32">
+                      <div className="text-2xl mb-2">📄</div>
+                      <p className="text-xs text-muted-foreground text-center truncate w-full">{file.name}</p>
                     </div>
                   )}
                   <button
@@ -169,6 +184,11 @@ const CreateStatusModal = ({ user, onClose, onPost }) => {
                   >
                     <X className="h-4 w-4" />
                   </button>
+                  {files.length > 1 && (
+                    <div className="absolute bottom-2 right-2 bg-black/50 text-white text-xs px-2 py-1 rounded">
+                      {index + 1}/{files.length}
+                    </div>
+                  )}
                 </div>
               ))}
             </div>

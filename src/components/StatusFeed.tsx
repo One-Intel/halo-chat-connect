@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from "react";
 import CreateStatusModal from "./CreateStatusModal";
 import NavBar from "@/components/NavBar";
@@ -101,13 +100,11 @@ const StatusFeed: React.FC = () => {
         </button>
       </div>
       
-      {/* Facebook-like Story Bar */}
       <div className="sticky top-[112px] z-10 bg-background px-4 py-2 border-b border-border">
         <StatusStoryBar />
       </div>
       
       <div className="flex-1 overflow-y-auto px-0 pb-4 bg-background">
-        {/* Enhanced Status Feed */}
         <div className="flex flex-col gap-2 px-2 pt-2">
           {statuses.length === 0 && status === 'success' ? (
             <div className="flex items-center justify-center h-full text-muted-foreground text-lg py-20">
@@ -166,24 +163,68 @@ const StatusFeed: React.FC = () => {
                   </div>
                 )}
                 
-                {/* Status Media */}
-                {status.media_url && (
+                {/* Enhanced Multiple Media Display */}
+                {status.media && status.media.length > 0 && (
                   <div className="px-4 pb-2">
-                    {status.media_url.match(/\.(jpg|jpeg|png|gif|webp)$/i) ? (
-                      <img 
-                        src={status.media_url} 
-                        alt="status" 
-                        className="rounded-lg w-full max-h-96 object-cover border" 
-                      />
-                    ) : status.media_url.match(/\.(mp4|webm|mov)$/i) ? (
-                      <video 
-                        src={status.media_url} 
-                        controls 
-                        className="rounded-lg w-full max-h-96 object-cover border" 
-                      />
-                    ) : status.media_url.match(/\.(mp3|wav|ogg)$/i) ? (
-                      <audio src={status.media_url} controls className="w-full" />
-                    ) : null}
+                    <div className={`grid gap-2 ${
+                      status.media.length === 1 ? 'grid-cols-1' : 
+                      status.media.length === 2 ? 'grid-cols-2' : 
+                      status.media.length <= 4 ? 'grid-cols-2' : 'grid-cols-3'
+                    }`}>
+                      {status.media
+                        .sort((a, b) => a.position - b.position)
+                        .slice(0, 6) // Limit display to 6 media items max
+                        .map((media, index) => (
+                          <div key={media.id} className="relative rounded-lg overflow-hidden border">
+                            {media.media_type === 'image' && (
+                              <img 
+                                src={media.media_url} 
+                                alt="status media" 
+                                className={`w-full object-cover ${
+                                  status.media.length === 1 ? 'max-h-96' : 'h-48'
+                                }`} 
+                              />
+                            )}
+                            {media.media_type === 'video' && (
+                              <video 
+                                src={media.media_url} 
+                                controls 
+                                className={`w-full object-cover ${
+                                  status.media.length === 1 ? 'max-h-96' : 'h-48'
+                                }`} 
+                              />
+                            )}
+                            {media.media_type === 'audio' && (
+                              <div className="p-4 bg-muted flex flex-col items-center justify-center h-24">
+                                <div className="text-2xl mb-2">🎵</div>
+                                <audio src={media.media_url} controls className="w-full" />
+                              </div>
+                            )}
+                            {media.media_type === 'document' && (
+                              <div className="p-4 bg-muted flex flex-col items-center justify-center h-24">
+                                <div className="text-2xl mb-2">📄</div>
+                                <p className="text-xs text-center">Document</p>
+                              </div>
+                            )}
+                            
+                            {/* Media counter overlay */}
+                            {status.media.length > 1 && (
+                              <div className="absolute bottom-2 right-2 bg-black/50 text-white text-xs px-2 py-1 rounded">
+                                {index + 1}/{status.media.length}
+                              </div>
+                            )}
+                            
+                            {/* Show "+X more" overlay for excess media */}
+                            {index === 5 && status.media.length > 6 && (
+                              <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
+                                <span className="text-white text-lg font-semibold">
+                                  +{status.media.length - 6} more
+                                </span>
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                    </div>
                   </div>
                 )}
                 

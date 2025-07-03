@@ -4,7 +4,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { StatusUpdate } from "@/types/status";
 import { PostgrestFilterBuilder } from '@supabase/postgrest-js';
 
-// Fetch status updates with enhanced filtering
+// Fetch status updates with enhanced filtering and media
 export function useStatusUpdates(viewMode: 'friends' | 'public' = 'friends') {
   const { user } = useAuth();
   
@@ -16,7 +16,8 @@ export function useStatusUpdates(viewMode: 'friends' | 'public' = 'friends') {
         .select(`
           id, user_id, content, created_at, expires_at, is_public, 
           privacy_level, comment_count, share_count,
-          user:profiles(username, avatar_url)
+          user:profiles(username, avatar_url),
+          status_media(id, media_url, media_type, position)
         `)
         .gt('expires_at', new Date().toISOString())
         .order('created_at', { ascending: false });
@@ -25,15 +26,8 @@ export function useStatusUpdates(viewMode: 'friends' | 'public' = 'friends') {
       if (viewMode === 'public') {
         query = query.eq('is_public', true).eq('privacy_level', 'public');
       } else if (viewMode === 'friends' && user) {
-        // Show public posts and friends-only posts from friends
-        const friendIds = await getFriendIds(user.id);
-        if (friendIds) {
-          query = query.or(
-            `is_public.eq.true,and(privacy_level.eq.friends,user_id.in.(${friendIds}))`
-          );
-        } else {
-          query = query.eq('is_public', true);
-        }
+        // Show all public posts OR user's own posts OR friends' posts
+        query = query.or(`is_public.eq.true,user_id.eq.${user.id}`);
       }
         
       const { data, error } = await query;
@@ -50,7 +44,8 @@ export function useStatusUpdates(viewMode: 'friends' | 'public' = 'friends') {
 
           return {
             ...status,
-            media_url: null, // Add default media_url for now
+            media_url: status.status_media?.[0]?.media_url || null,
+            media: status.status_media || [],
             user: Array.isArray(status.user) ? status.user[0] : status.user,
             reactions,
             views: views?.map((v: any) => v.viewer_id) || [],
@@ -66,7 +61,6 @@ export function useStatusUpdates(viewMode: 'friends' | 'public' = 'friends') {
   });
 }
 
-// Helper function to get friend IDs
 async function getFriendIds(currentUserId: string): Promise<string | null> {
   const { data } = await supabase
     .from('friendships')
@@ -76,7 +70,6 @@ async function getFriendIds(currentUserId: string): Promise<string | null> {
   return data?.length ? data.map(f => f.friend_id).join(',') : null;
 }
 
-// Helper functions for status details
 async function getStatusReactions(statusId: string) {
   const { data: reactions } = await supabase
     .from('status_reactions')
@@ -111,7 +104,7 @@ async function getStatusShares(statusId: string) {
   return data;
 }
 
-// Create status update with privacy controls
+// Create status update with multiple media support
 export function useCreateStatus() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
@@ -119,12 +112,12 @@ export function useCreateStatus() {
   return useMutation({
     mutationFn: async ({ 
       content, 
-      mediaUrl, 
+      mediaUrls = [], 
       privacyLevel = 'public',
       isPublic = true 
     }: { 
       content?: string; 
-      mediaUrl?: string; 
+      mediaUrls?: { url: string; type: string }[]; 
       privacyLevel?: 'public' | 'friends';
       isPublic?: boolean;
     }) => {
@@ -133,7 +126,8 @@ export function useCreateStatus() {
       const expiresAt = new Date();
       expiresAt.setHours(expiresAt.getHours() + 24);
       
-      const { data, error } = await supabase
+      // Create the status update
+      const { data: status, error } = await supabase
         .from('status_updates')
         .insert({
           user_id: user.id,
@@ -146,7 +140,24 @@ export function useCreateStatus() {
         .single();
         
       if (error) throw error;
-      return data;
+      
+      // Insert all media files
+      if (mediaUrls.length > 0) {
+        const mediaInserts = mediaUrls.map((media, index) => ({
+          status_id: status.id,
+          media_url: media.url,
+          media_type: media.type,
+          position: index
+        }));
+        
+        const { error: mediaError } = await supabase
+          .from('status_media')
+          .insert(mediaInserts);
+          
+        if (mediaError) throw mediaError;
+      }
+      
+      return status;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['status-updates'] });
@@ -154,7 +165,6 @@ export function useCreateStatus() {
   });
 }
 
-// Share a status
 export function useShareStatus() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
@@ -274,7 +284,7 @@ export function useDeleteStatus() {
   });
 }
 
-// Infinite scroll for status updates with enhanced filtering
+// Enhanced infinite scroll with proper media handling
 export function useInfiniteStatusUpdates(pageSize = 10, viewMode = 'friends') {
   const { user } = useAuth();
   return useInfiniteQuery<StatusUpdate[], Error>({
@@ -286,7 +296,8 @@ export function useInfiniteStatusUpdates(pageSize = 10, viewMode = 'friends') {
         .select(`
           id, user_id, content, created_at, expires_at, is_public, 
           privacy_level, comment_count, share_count,
-          user:profiles(username, avatar_url)
+          user:profiles(username, avatar_url),
+          status_media(id, media_url, media_type, position)
         `)
         .gt('expires_at', new Date().toISOString())
         .order('created_at', { ascending: false })
@@ -300,7 +311,7 @@ export function useInfiniteStatusUpdates(pageSize = 10, viewMode = 'friends') {
       if (viewMode === 'public') {
         query = query.eq('is_public', true).eq('privacy_level', 'public');
       } else if (viewMode === 'friends' && user) {
-        // Show public posts and user's own posts (including friends-only)
+        // Show all public posts OR user's own posts
         query = query.or(`is_public.eq.true,user_id.eq.${user.id}`);
       }
       
@@ -318,7 +329,8 @@ export function useInfiniteStatusUpdates(pageSize = 10, viewMode = 'friends') {
 
           return {
             ...status,
-            media_url: null, // Add default media_url for now
+            media_url: status.status_media?.[0]?.media_url || null,
+            media: status.status_media || [],
             user: Array.isArray(status.user) ? status.user[0] : status.user,
             reactions,
             views: views?.map((v: any) => v.viewer_id) || [],
