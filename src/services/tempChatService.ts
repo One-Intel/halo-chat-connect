@@ -84,21 +84,39 @@ export function useTempMessages(sessionId: string) {
   return useQuery({
     queryKey: ['temp-messages', sessionId],
     queryFn: async () => {
-      const { data, error } = await supabase
+      // First get the temp messages
+      const { data: tempMessages, error: messagesError } = await supabase
         .from('temp_messages')
-        .select(`
-          id, session_id, user_id, content, created_at, expires_at,
-          profiles!inner(username, avatar_url)
-        `)
+        .select('*')
         .eq('session_id', sessionId)
         .gt('expires_at', new Date().toISOString())
         .order('created_at', { ascending: true });
         
-      if (error) throw error;
-      return (data || []).map(msg => ({
+      if (messagesError) throw messagesError;
+      
+      if (!tempMessages || tempMessages.length === 0) {
+        return [];
+      }
+      
+      // Get unique user IDs
+      const userIds = [...new Set(tempMessages.map(msg => msg.user_id))];
+      
+      // Fetch user profiles separately
+      const { data: profiles, error: profilesError } = await supabase
+        .from('profiles')
+        .select('id, username, avatar_url')
+        .in('id', userIds);
+        
+      if (profilesError) throw profilesError;
+      
+      // Create a map of user profiles
+      const profilesMap = new Map(profiles?.map(profile => [profile.id, profile]) || []);
+      
+      // Combine messages with user data
+      return tempMessages.map(msg => ({
         ...msg,
-        user: msg.profiles
-      })) as (TempMessage & { user: { username: string; avatar_url: string } })[];
+        user: profilesMap.get(msg.user_id) || { username: 'Unknown User', avatar_url: null }
+      })) as (TempMessage & { user: { username: string; avatar_url: string | null } })[];
     },
     enabled: !!user && !!sessionId,
     refetchInterval: 1000, // Refresh every second for real-time countdown
