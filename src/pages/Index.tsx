@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -15,11 +14,11 @@ const Index = () => {
       <div className="relative z-10 flex flex-col items-center justify-center text-center max-w-sm w-full">
         {/* Logo */}
         <div className="mb-12">
-          <div className="w-24 h-24 bg-background rounded-3xl shadow-2xl flex items-center justify-center mb-6">
+          <div className="w-24 h-24 flex items-center justify-center mb-6">
             <img 
               src={WispaChatLogo} 
               alt="WispaChat Logo" 
-              className="w-16 h-16 rounded-2xl object-cover" 
+              className="w-24 h-24 rounded-3xl object-contain" 
             />
           </div>
         </div>
