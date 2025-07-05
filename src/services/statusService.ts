@@ -2,9 +2,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useMutation, useQueryClient, useInfiniteQuery } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/AuthContext";
 import { StatusUpdate } from "@/types/status";
-import { PostgrestFilterBuilder } from '@supabase/postgrest-js';
 
-// Enhanced infinite scroll with proper media handling and debug logging
+// Enhanced infinite scroll with proper media handling and reduced refresh rate
 export function useInfiniteStatusUpdates(pageSize = 10, viewMode = 'public') {
   const { user } = useAuth();
   
@@ -34,9 +33,6 @@ export function useInfiniteStatusUpdates(pageSize = 10, viewMode = 'public') {
       if (viewMode === 'public') {
         query = query.eq('is_public', true);
       } else if (viewMode === 'friends' && user) {
-        // For friends mode, show public posts AND user's own posts
-        // We can't easily filter by friendship here, so we'll show all public posts
-        // In a real app, you'd need a more complex query or handle this differently
         query = query.eq('is_public', true);
       }
       
@@ -65,7 +61,6 @@ export function useInfiniteStatusUpdates(pageSize = 10, viewMode = 'public') {
         
       if (profilesError) {
         console.error('Error fetching profiles:', profilesError);
-        // Continue without profiles rather than failing completely
       }
       
       console.log('Profiles data:', profilesData);
@@ -108,7 +103,11 @@ export function useInfiniteStatusUpdates(pageSize = 10, viewMode = 'public') {
       if (!lastPage || !Array.isArray(lastPage) || lastPage.length === 0) return undefined;
       return lastPage[lastPage.length - 1].created_at;
     },
-    enabled: true, // Always enabled, don't require user
+    enabled: true,
+    // Reduce refresh rate to prevent lag
+    refetchInterval: false, // Disable automatic refetching
+    staleTime: 1000 * 60 * 2, // Consider data fresh for 2 minutes
+    gcTime: 1000 * 60 * 10, // Keep in cache for 10 minutes
   });
 }
 
@@ -236,7 +235,7 @@ async function getStatusShares(statusId: string) {
   return data;
 }
 
-// Create status update with multiple media support
+// Create status update with better error handling
 export function useCreateStatus() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
@@ -253,7 +252,7 @@ export function useCreateStatus() {
       privacyLevel?: 'public' | 'friends';
       isPublic?: boolean;
     }) => {
-      if (!user) throw new Error('No user');
+      if (!user) throw new Error('No user authenticated');
       
       const expiresAt = new Date();
       expiresAt.setHours(expiresAt.getHours() + 24);
@@ -275,7 +274,7 @@ export function useCreateStatus() {
         
       if (error) {
         console.error('Error creating status:', error);
-        throw error;
+        throw new Error(`Failed to create status: ${error.message}`);
       }
       
       console.log('Status created:', status);
@@ -297,29 +296,29 @@ export function useCreateStatus() {
           
         if (mediaError) {
           console.error('Error inserting media:', mediaError);
-          throw mediaError;
+          throw new Error(`Failed to upload media: ${mediaError.message}`);
         }
       }
       
       return status;
     },
     onSuccess: () => {
+      // Invalidate with reduced frequency to prevent excessive refreshing
       queryClient.invalidateQueries({ queryKey: ['status-updates-infinite'] });
       queryClient.invalidateQueries({ queryKey: ['status-updates'] });
     },
   });
 }
 
-// View status
+// View status with better error handling
 export function useViewStatus() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
   
   return useMutation({
     mutationFn: async ({ statusId }: { statusId: string }) => {
-      if (!user) return; // Don't throw error, just skip
+      if (!user) return;
       
-      // Add to status_views table
       const { error: viewError } = await supabase
         .from('status_views')
         .insert({
@@ -327,24 +326,25 @@ export function useViewStatus() {
           viewer_id: user.id
         });
       
-      if (viewError && !viewError.message.includes('duplicate')) {
+      // Only log error if it's not a duplicate (which is expected)
+      if (viewError && !viewError.message.includes('already viewed')) {
         console.error('Error adding view:', viewError);
       }
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['status-updates-infinite'] });
+      // Don't invalidate queries on view to reduce refresh rate
     },
   });
 }
 
-// React to status
+// React to status with optimistic updates and visual feedback
 export function useReactToStatus() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
   
   return useMutation({
     mutationFn: async ({ statusId, emoji }: { statusId: string; emoji: string }) => {
-      if (!user) throw new Error('No user');
+      if (!user) throw new Error('User not authenticated');
       
       // Check if user already reacted
       const { data: existingReaction } = await supabase
@@ -361,7 +361,7 @@ export function useReactToStatus() {
           .update({ emoji })
           .eq('id', existingReaction.id);
           
-        if (error) throw error;
+        if (error) throw new Error(`Failed to update reaction: ${error.message}`);
       } else {
         // Create new reaction
         const { error } = await supabase
@@ -372,11 +372,54 @@ export function useReactToStatus() {
             emoji
           });
           
-        if (error) throw error;
+        if (error) throw new Error(`Failed to add reaction: ${error.message}`);
+      }
+      
+      return { statusId, emoji, userId: user.id };
+    },
+    onMutate: async ({ statusId, emoji }) => {
+      // Optimistic update for immediate visual feedback
+      await queryClient.cancelQueries({ queryKey: ['status-updates-infinite'] });
+      
+      const previousData = queryClient.getQueryData(['status-updates-infinite']);
+      
+      // Update the cache optimistically
+      queryClient.setQueryData(['status-updates-infinite'], (old: any) => {
+        if (!old) return old;
+        
+        return {
+          ...old,
+          pages: old.pages.map((page: StatusUpdate[]) =>
+            page.map((status) => {
+              if (status.id === statusId) {
+                const newReactions = { ...status.reactions };
+                if (!newReactions[emoji]) {
+                  newReactions[emoji] = [];
+                }
+                if (!newReactions[emoji].includes(user?.id || '')) {
+                  newReactions[emoji].push(user?.id || '');
+                }
+                return { ...status, reactions: newReactions };
+              }
+              return status;
+            })
+          )
+        };
+      });
+      
+      return { previousData };
+    },
+    onError: (err, variables, context) => {
+      // Revert optimistic update on error
+      if (context?.previousData) {
+        queryClient.setQueryData(['status-updates-infinite'], context.previousData);
       }
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['status-updates-infinite'] });
+      // Refresh data but with reduced frequency
+      setTimeout(() => {
+        queryClient.invalidateQueries({ queryKey: ['status-updates-infinite'] });
+      }, 1000); // Delay to prevent excessive requests
     },
   });
 }

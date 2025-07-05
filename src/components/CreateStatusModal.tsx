@@ -7,7 +7,6 @@ import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "@/hooks/use-toast";
 
 const CreateStatusModal = ({ user, onClose, onPost }) => {
-  // Option type for post options
   type OptionType = '' | 'media' | 'gif' | 'poll' | 'adoption' | 'event' | 'notice';
   const [files, setFiles] = useState<File[]>([]);
   const [caption, setCaption] = useState('');
@@ -16,19 +15,52 @@ const CreateStatusModal = ({ user, onClose, onPost }) => {
   const [uploadProgress, setUploadProgress] = useState(0);
   const [showOptions, setShowOptions] = useState<OptionType>('');
   const [previewUrls, setPreviewUrls] = useState<string[]>([]);
+  const [uploadError, setUploadError] = useState<string>('');
   
   const { user: authUser } = useAuth();
   const createStatus = useCreateStatus();
 
-  // Handle multiple file uploads
+  // Handle multiple file uploads with validation
   const handleFileChange = (e) => {
     const selectedFiles = Array.from(e.target.files || []) as File[];
-    const newFiles = [...files, ...selectedFiles];
+    
+    // Validate files before adding
+    const validFiles = selectedFiles.filter(file => {
+      const maxSize = 10 * 1024 * 1024; // 10MB
+      if (file.size > maxSize) {
+        toast({
+          title: "File too large",
+          description: `${file.name} is larger than 10MB`,
+          variant: "destructive"
+        });
+        return false;
+      }
+      
+      const allowedTypes = [
+        'image/jpeg', 'image/png', 'image/webp', 'image/gif',
+        'video/mp4', 'video/webm', 'video/mov',
+        'audio/mpeg', 'audio/wav'
+      ];
+      
+      if (!allowedTypes.includes(file.type)) {
+        toast({
+          title: "Unsupported file type",
+          description: `${file.name} is not a supported file type`,
+          variant: "destructive"
+        });
+        return false;
+      }
+      
+      return true;
+    });
+    
+    const newFiles = [...files, ...validFiles];
     setFiles(newFiles);
     
     // Create preview URLs for new files
-    const newPreviewUrls = selectedFiles.map(file => URL.createObjectURL(file));
+    const newPreviewUrls = validFiles.map(file => URL.createObjectURL(file));
     setPreviewUrls([...previewUrls, ...newPreviewUrls]);
+    setUploadError(''); // Clear any previous errors
   };
 
   // Remove specific file
@@ -43,35 +75,42 @@ const CreateStatusModal = ({ user, onClose, onPost }) => {
     setPreviewUrls(newPreviews);
   };
 
-  // Enhanced post submission with multiple media
+  // Enhanced post submission with better error handling
   const handlePost = async () => {
     if (!authUser || (!files.length && !caption.trim())) return;
     
     setUploading(true);
     setUploadProgress(0);
+    setUploadError('');
     
     try {
       let mediaUrls: { url: string; type: string }[] = [];
       
-      // Upload all files
+      // Upload all files with progress tracking
       if (files.length > 0) {
         for (let i = 0; i < files.length; i++) {
           const file = files[i];
-          const uploaded = await uploadFile({
-            bucket: 'status',
-            file,
-            userId: authUser.id,
-            folder: 'posts'
-          });
           
-          // Determine media type
-          let mediaType = 'image';
-          if (file.type.startsWith('video/')) mediaType = 'video';
-          else if (file.type.startsWith('audio/')) mediaType = 'audio';
-          else if (file.type.startsWith('application/') || file.type.startsWith('text/')) mediaType = 'document';
-          
-          mediaUrls.push({ url: uploaded.url, type: mediaType });
-          setUploadProgress(((i + 1) / files.length) * 90); // 90% for upload, 10% for status creation
+          try {
+            const uploaded = await uploadFile({
+              bucket: 'status',
+              file,
+              userId: authUser.id,
+              folder: 'posts'
+            });
+            
+            // Determine media type
+            let mediaType = 'image';
+            if (file.type.startsWith('video/')) mediaType = 'video';
+            else if (file.type.startsWith('audio/')) mediaType = 'audio';
+            else if (file.type.startsWith('application/') || file.type.startsWith('text/')) mediaType = 'document';
+            
+            mediaUrls.push({ url: uploaded.url, type: mediaType });
+            setUploadProgress(((i + 1) / files.length) * 90); // 90% for upload, 10% for status creation
+          } catch (uploadError) {
+            console.error(`Failed to upload ${file.name}:`, uploadError);
+            throw new Error(`Failed to upload ${file.name}: ${uploadError.message}`);
+          }
         }
       }
       
@@ -94,9 +133,12 @@ const CreateStatusModal = ({ user, onClose, onPost }) => {
       onClose();
     } catch (error) {
       console.error('Error posting status:', error);
+      const errorMessage = error.message || 'Failed to post status. Please try again.';
+      setUploadError(errorMessage);
+      
       toast({
         title: "Error",
-        description: "Failed to post status. Please try again.",
+        description: errorMessage,
         variant: "destructive"
       });
     } finally {
@@ -123,14 +165,11 @@ const CreateStatusModal = ({ user, onClose, onPost }) => {
 
         {/* User Info */}
         <div className="flex items-center gap-3 px-4 pt-3 pb-1">
-          {/* Avatar */}
           <div className="h-10 w-10">
-            {/* You can use your Avatar component here if you want */}
             <img src={user?.avatar_url || '/placeholder.svg'} alt="avatar" className="h-10 w-10 rounded-full object-cover bg-muted" />
           </div>
           <div className="flex flex-col">
             <span className="font-medium text-foreground">{user?.username || 'You'}</span>
-            {/* Optionally, add a badge or verification icon here */}
           </div>
         </div>
 
@@ -208,6 +247,15 @@ const CreateStatusModal = ({ user, onClose, onPost }) => {
           </div>
         )}
 
+        {/* Error Display */}
+        {uploadError && (
+          <div className="px-4 pb-2">
+            <div className="bg-destructive/10 border border-destructive/20 rounded-md p-3">
+              <p className="text-sm text-destructive">{uploadError}</p>
+            </div>
+          </div>
+        )}
+
         {/* Media & Options */}
         <div className="px-4 pb-2">
           <div className="grid grid-cols-3 gap-2 mb-2">
@@ -254,6 +302,7 @@ const CreateStatusModal = ({ user, onClose, onPost }) => {
               Lost Notice
             </button>
           </div>
+          
           {/* Option Inputs */}
           {showOptions === 'media' && (
             <div className="mt-2 flex flex-col gap-2">
@@ -265,7 +314,7 @@ const CreateStatusModal = ({ user, onClose, onPost }) => {
                 className="block w-full text-sm text-muted-foreground file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:text-sm file:bg-muted file:text-foreground"
               />
               <p className="text-xs text-muted-foreground mt-1">
-                You can select multiple files (images, videos, audio)
+                You can select multiple files (images, videos, audio). Max 10MB per file.
               </p>
             </div>
           )}
