@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { Smile } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -31,21 +32,30 @@ const MessageReactions: React.FC<MessageReactionsProps> = ({
             key={emoji}
             onClick={() => hasReacted ? onRemoveReaction(emoji) : onAddReaction(emoji)}
             className={cn(
-              "px-2 py-1 rounded-full text-xs flex items-center space-x-1",
-              hasReacted ? "bg-wispa-100 text-white" : "bg-gray-100",
-              isOwnMessage && !hasReacted && "bg-wispa-600/20"
+              "px-2 py-1 rounded-full text-xs flex items-center space-x-1 transition-all duration-200",
+              hasReacted 
+                ? `${isOwnMessage ? 'bg-blue-600/30 text-blue-100 ring-1 ring-blue-400' : 'bg-blue-100 text-blue-700 ring-1 ring-blue-300'} scale-105` 
+                : `${isOwnMessage ? 'bg-white/20 text-white hover:bg-white/30' : 'bg-gray-100 hover:bg-gray-200'}`
             )}
           >
-            <span>{emoji}</span>
-            {count > 1 && <span>{count}</span>}
+            <span className="text-sm">{emoji}</span>
+            {count > 1 && (
+              <span className={cn(
+                "font-semibold text-xs",
+                hasReacted ? (isOwnMessage ? 'text-blue-200' : 'text-blue-600') : ''
+              )}>
+                {count}
+              </span>
+            )}
           </button>
         ))}
         
         <button
           onClick={() => setShowEmojiPicker(!showEmojiPicker)}
           className={cn(
-            "p-1 rounded-full hover:bg-gray-100",
-            isOwnMessage ? "text-wispa-100" : "text-gray-500"
+            "p-1 rounded-full hover:bg-gray-100 transition-all duration-200",
+            isOwnMessage ? "text-white hover:bg-white/20" : "text-gray-500",
+            showEmojiPicker && "bg-gray-100 scale-110"
           )}
         >
           <Smile className="h-4 w-4" />
@@ -53,7 +63,7 @@ const MessageReactions: React.FC<MessageReactionsProps> = ({
       </div>
 
       {showEmojiPicker && (
-        <div className="absolute bottom-full mb-2 bg-white rounded-lg shadow-lg p-2 grid grid-cols-6 gap-1">
+        <div className="absolute bottom-full mb-2 bg-white rounded-xl shadow-xl border p-2 grid grid-cols-6 gap-1 z-50 animate-scale-in">
           {EMOJI_LIST.map(emoji => (
             <button
               key={emoji}
@@ -61,7 +71,7 @@ const MessageReactions: React.FC<MessageReactionsProps> = ({
                 onAddReaction(emoji);
                 setShowEmojiPicker(false);
               }}
-              className="p-1 hover:bg-gray-100 rounded"
+              className="p-2 hover:bg-blue-50 rounded-lg transition-all duration-200 hover:scale-125 text-lg"
             >
               {emoji}
             </button>

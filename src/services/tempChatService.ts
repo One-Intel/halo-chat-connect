@@ -34,6 +34,17 @@ export function useCreateTempSession() {
         .single();
         
       if (error) throw error;
+      
+      // Notify other participants via realtime
+      await supabase
+        .from('messages')
+        .insert({
+          chat_id: chatId,
+          user_id: user.id,
+          content: `🔒 Temporary chat started (${timerMinutes} min timer)`,
+          type: 'system'
+        });
+        
       return data;
     },
     onSuccess: () => {
@@ -62,6 +73,7 @@ export function useTempSession(chatId: string) {
       return data as TempChatSession | null;
     },
     enabled: !!user && !!chatId,
+    refetchInterval: 5000, // Check every 5 seconds for session updates
   });
 }
 
@@ -75,14 +87,18 @@ export function useTempMessages(sessionId: string) {
       const { data, error } = await supabase
         .from('temp_messages')
         .select(`
-          id, session_id, user_id, content, created_at, expires_at
+          id, session_id, user_id, content, created_at, expires_at,
+          profiles!inner(username, avatar_url)
         `)
         .eq('session_id', sessionId)
         .gt('expires_at', new Date().toISOString())
         .order('created_at', { ascending: true });
         
       if (error) throw error;
-      return (data || []) as TempMessage[];
+      return (data || []).map(msg => ({
+        ...msg,
+        user: msg.profiles
+      })) as (TempMessage & { user: { username: string; avatar_url: string } })[];
     },
     enabled: !!user && !!sessionId,
     refetchInterval: 1000, // Refresh every second for real-time countdown
@@ -135,7 +151,7 @@ export function useEndTempSession() {
   const queryClient = useQueryClient();
   
   return useMutation({
-    mutationFn: async (sessionId: string) => {
+    mutationFn: async ({ sessionId, chatId }: { sessionId: string; chatId: string }) => {
       if (!user) throw new Error('No user');
       
       // Deactivate the session
@@ -153,6 +169,37 @@ export function useEndTempSession() {
         .eq('session_id', sessionId);
         
       if (messagesError) throw messagesError;
+      
+      // Send system message about session end
+      await supabase
+        .from('messages')
+        .insert({
+          chat_id: chatId,
+          user_id: user.id,
+          content: '🔓 Temporary chat ended',
+          type: 'system'
+        });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['temp-sessions'] });
+      queryClient.invalidateQueries({ queryKey: ['temp-messages'] });
+    },
+  });
+}
+
+// Delete expired messages and auto-close empty sessions
+export function useCleanupTempMessages() {
+  const queryClient = useQueryClient();
+  
+  return useMutation({
+    mutationFn: async () => {
+      // This will be called periodically to clean up expired messages
+      const { error } = await supabase.rpc('delete_expired_temp_messages');
+      if (error) throw error;
+      
+      // Check for sessions with no active messages and close them
+      const { error: cleanupError } = await supabase.rpc('deactivate_expired_temp_sessions');
+      if (cleanupError) throw cleanupError;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['temp-sessions'] });
