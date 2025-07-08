@@ -1,10 +1,9 @@
-
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useMutation, useQueryClient, useInfiniteQuery } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/AuthContext";
 import { StatusUpdate } from "@/types/status";
 
-// Enhanced infinite scroll with proper media handling and reduced refresh rate
+// Enhanced infinite scroll with proper friends filtering
 export function useInfiniteStatusUpdates(pageSize = 10, viewMode = 'public') {
   const { user } = useAuth();
   
@@ -14,7 +13,7 @@ export function useInfiniteStatusUpdates(pageSize = 10, viewMode = 'public') {
     queryFn: async ({ pageParam = null }) => {
       console.log('Fetching statuses with params:', { pageParam, viewMode, userId: user?.id });
       
-      // First, fetch status updates without the problematic foreign key hint
+      // First, fetch status updates
       let query = supabase
         .from('status_updates')
         .select(`
@@ -34,7 +33,24 @@ export function useInfiniteStatusUpdates(pageSize = 10, viewMode = 'public') {
       if (viewMode === 'public') {
         query = query.eq('is_public', true);
       } else if (viewMode === 'friends' && user) {
-        query = query.eq('is_public', true);
+        // For friends view, get user's friends first
+        const { data: friendships } = await supabase
+          .from('friendships')
+          .select('friend_id, user_id')
+          .or(`user_id.eq.${user.id},friend_id.eq.${user.id}`);
+        
+        // Extract friend IDs
+        const friendIds = friendships?.map(f => 
+          f.user_id === user.id ? f.friend_id : f.user_id
+        ) || [];
+        
+        if (friendIds.length > 0) {
+          // Include user's own posts and friends' posts
+          query = query.or(`user_id.eq.${user.id},user_id.in.(${friendIds.join(',')})`);
+        } else {
+          // If no friends, only show user's own posts
+          query = query.eq('user_id', user.id);
+        }
       }
       
       const { data: statusData, error } = await query;
@@ -105,10 +121,9 @@ export function useInfiniteStatusUpdates(pageSize = 10, viewMode = 'public') {
       return lastPage[lastPage.length - 1].created_at;
     },
     enabled: true,
-    // Reduce refresh rate to prevent lag
-    refetchInterval: false, // Disable automatic refetching
-    staleTime: 1000 * 60 * 2, // Consider data fresh for 2 minutes
-    gcTime: 1000 * 60 * 10, // Keep in cache for 10 minutes
+    refetchInterval: false,
+    staleTime: 1000 * 60 * 2,
+    gcTime: 1000 * 60 * 10,
   });
 }
 

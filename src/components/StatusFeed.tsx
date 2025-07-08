@@ -27,7 +27,6 @@ const StatusFeed: React.FC = () => {
   const [expandedComments, setExpandedComments] = useState<Set<string>>(new Set());
   const [playingVideos, setPlayingVideos] = useState<Set<string>>(new Set());
   const [mutedVideos, setMutedVideos] = useState<Set<string>>(new Set());
-  const [currentVideoIndex, setCurrentVideoIndex] = useState(0);
   const videoRefs = useRef<Map<string, HTMLVideoElement>>(new Map());
   const containerRef = useRef<HTMLDivElement>(null);
   const { user } = useAuth();
@@ -213,7 +212,8 @@ const StatusFeed: React.FC = () => {
           <img 
             src={media.media_url} 
             alt="status media" 
-            className="w-full h-full object-cover" 
+            className="w-full h-full object-cover object-center" 
+            style={{ objectFit: 'cover', objectPosition: 'center' }}
           />
         );
       case 'video':
@@ -226,13 +226,14 @@ const StatusFeed: React.FC = () => {
                 }
               }}
               src={media.media_url} 
-              className="w-full h-full object-cover"
+              className="w-full h-full object-cover object-center"
               loop
               muted={mutedVideos.has(status.id)}
               playsInline
               preload="metadata"
               poster={`${media.media_url}#t=0.5`}
               onClick={() => toggleVideoPlay(status.id)}
+              style={{ objectFit: 'cover', objectPosition: 'center' }}
             />
             
             {/* Play/Pause overlay */}
@@ -358,7 +359,9 @@ const StatusFeed: React.FC = () => {
         
         {statuses.length === 0 && status === 'success' ? (
           <div className="flex flex-col items-center justify-center h-full text-muted-foreground text-lg py-20">
-            <p className="mb-4">No statuses yet.</p>
+            <p className="mb-4">
+              {viewMode === 'friends' ? 'No posts from friends yet.' : 'No statuses yet.'}
+            </p>
             <Button 
               onClick={() => setShowCreateModal(true)}
               className="bg-primary hover:bg-primary/90 text-primary-foreground"

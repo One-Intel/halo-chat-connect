@@ -24,36 +24,50 @@ const Profile: React.FC = () => {
       if (!user) return;
 
       try {
+        console.log('Fetching profile for user:', user.id);
+        
         const { data, error } = await supabase
           .from('profiles')
           .select('username, avatar_url, user_id')
           .eq('id', user.id)
           .single();
 
+        console.log('Profile fetch result:', { data, error });
+
         if (error) {
-          // If no profile exists, create one
           if (error.code === 'PGRST116') {
-            const newId = Math.floor(100000 + Math.random() * 900000).toString();
+            // No profile exists, create one
+            console.log('No profile found, creating new one');
             
-            const { error: insertError } = await supabase
+            const newId = Math.floor(100000 + Math.random() * 900000).toString();
+            const defaultUsername = user.email?.split('@')[0] || 'User';
+            
+            const { data: newProfile, error: insertError } = await supabase
               .from('profiles')
               .insert({
                 id: user.id,
-                username: user.email?.split('@')[0] || 'User',
+                username: defaultUsername,
                 user_id: newId,
                 avatar_url: null
-              });
+              })
+              .select('*')
+              .single();
+
+            console.log('Profile creation result:', { newProfile, insertError });
 
             if (insertError) {
               console.error('Error creating profile:', insertError);
-            } else {
-              setUsername(user.email?.split('@')[0] || 'User');
-              setUserId(newId);
+              throw insertError;
             }
+            
+            setUsername(defaultUsername);
+            setUserId(newId);
+            setAvatarUrl(null);
           } else {
             throw error;
           }
         } else if (data) {
+          console.log('Profile found:', data);
           setUsername(data.username || '');
           setAvatarUrl(data.avatar_url);
           setUserId(data.user_id || '');
@@ -61,17 +75,22 @@ const Profile: React.FC = () => {
           // If no user ID exists in profile, generate one
           if (!data.user_id) {
             const newId = Math.floor(100000 + Math.random() * 900000).toString();
-            setUserId(newId);
+            console.log('Generating new user ID:', newId);
             
-            // Save the new ID to the profile
-            await supabase
+            const { error: updateError } = await supabase
               .from('profiles')
               .update({ user_id: newId })
               .eq('id', user.id);
+              
+            if (updateError) {
+              console.error('Error updating user ID:', updateError);
+            } else {
+              setUserId(newId);
+            }
           }
         }
       } catch (error) {
-        console.error('Error fetching profile:', error);
+        console.error('Error in fetchProfile:', error);
         toast({
           title: 'Error',
           description: 'Failed to load profile',
@@ -86,32 +105,75 @@ const Profile: React.FC = () => {
   }, [user]);
 
   const handleUpdateProfile = async () => {
-    if (!user) return;
+    if (!user || !username.trim()) {
+      toast({
+        title: 'Error',
+        description: 'Username is required',
+        variant: 'destructive',
+      });
+      return;
+    }
     
     setUpdating(true);
     try {
-      const { error } = await supabase
+      console.log('Updating profile with:', { username: username.trim(), userId: user.id });
+      
+      // First check if profile exists
+      const { data: existingProfile } = await supabase
         .from('profiles')
-        .update({ 
-          username: username.trim(),
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', user.id);
+        .select('id')
+        .eq('id', user.id)
+        .single();
+        
+      if (!existingProfile) {
+        // Profile doesn't exist, create it
+        const { data: newProfile, error: insertError } = await supabase
+          .from('profiles')
+          .insert({
+            id: user.id,
+            username: username.trim(),
+            user_id: userId || Math.floor(100000 + Math.random() * 900000).toString(),
+            avatar_url: avatarUrl,
+            updated_at: new Date().toISOString()
+          })
+          .select('*')
+          .single();
+          
+        console.log('Profile creation result:', { newProfile, insertError });
+        
+        if (insertError) {
+          console.error('Insert error:', insertError);
+          throw insertError;
+        }
+      } else {
+        // Profile exists, update it
+        const { data: updatedProfile, error: updateError } = await supabase
+          .from('profiles')
+          .update({ 
+            username: username.trim(),
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', user.id)
+          .select('*')
+          .single();
 
-      if (error) {
-        console.error('Update error:', error);
-        throw error;
+        console.log('Profile update result:', { updatedProfile, updateError });
+
+        if (updateError) {
+          console.error('Update error:', updateError);
+          throw updateError;
+        }
       }
 
       toast({
         title: 'Success',
         description: 'Profile updated successfully',
       });
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error updating profile:', error);
       toast({
         title: 'Error',
-        description: 'Failed to update profile. Please try again.',
+        description: `Failed to update profile: ${error.message || 'Please try again.'}`,
         variant: 'destructive',
       });
     } finally {
@@ -145,6 +207,8 @@ const Profile: React.FC = () => {
 
     setUpdating(true);
     try {
+      console.log('Uploading avatar for user:', user.id);
+      
       // Delete existing avatar if it exists
       if (avatarUrl) {
         try {
@@ -164,16 +228,46 @@ const Profile: React.FC = () => {
         userId: user.id
       });
 
-      // Update profile with new avatar URL
-      const { error: updateError } = await supabase
-        .from('profiles')
-        .update({ 
-          avatar_url: newAvatarUrl,
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', user.id);
+      console.log('New avatar URL:', newAvatarUrl);
 
-      if (updateError) throw updateError;
+      // Check if profile exists
+      const { data: existingProfile } = await supabase
+        .from('profiles')
+        .select('id')
+        .eq('id', user.id)
+        .single();
+        
+      if (!existingProfile) {
+        // Create profile with avatar
+        const { error: insertError } = await supabase
+          .from('profiles')
+          .insert({
+            id: user.id,
+            username: username || user.email?.split('@')[0] || 'User',
+            user_id: userId || Math.floor(100000 + Math.random() * 900000).toString(),
+            avatar_url: newAvatarUrl,
+            updated_at: new Date().toISOString()
+          });
+          
+        if (insertError) {
+          console.error('Error creating profile with avatar:', insertError);
+          throw insertError;
+        }
+      } else {
+        // Update profile with new avatar URL
+        const { error: updateError } = await supabase
+          .from('profiles')
+          .update({ 
+            avatar_url: newAvatarUrl,
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', user.id);
+
+        if (updateError) {
+          console.error('Error updating avatar:', updateError);
+          throw updateError;
+        }
+      }
 
       setAvatarUrl(newAvatarUrl);
       
@@ -181,11 +275,11 @@ const Profile: React.FC = () => {
         title: 'Success',
         description: 'Avatar updated successfully',
       });
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error uploading avatar:', error);
       toast({
         title: 'Error',
-        description: 'Failed to update avatar',
+        description: `Failed to update avatar: ${error.message || 'Please try again.'}`,
         variant: 'destructive',
       });
     } finally {
