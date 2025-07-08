@@ -25,8 +25,8 @@ import React, { useEffect } from "react";
 
 const queryClient = new QueryClient();
 
-function App() {
-  // Initialize notifications
+function AppContent() {
+  // Initialize notifications - now inside AuthProvider
   useNotifications();
 
   // Initialize push notifications
@@ -35,98 +35,104 @@ function App() {
   }, []);
 
   return (
+    <BrowserRouter>
+      <Routes>
+        <Route path="/" element={<Index />} />
+        <Route path="/auth" element={<Auth />} />
+        <Route
+          path="/chats"
+          element={
+            <ProtectedRoute>
+              <ChatList />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/chat/:chatId"
+          element={
+            <ProtectedRoute>
+              <ChatDetail />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/new-chat"
+          element={
+            <ProtectedRoute>
+              <NewChat />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/profile"
+          element={
+            <ProtectedRoute>
+              <Profile />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/profile/status"
+          element={
+            <ProtectedRoute>
+              <ProfileStatusDashboard />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/friends"
+          element={
+            <ProtectedRoute>
+              <Friends />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/calls"
+          element={
+            <ProtectedRoute>
+              <Calls />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/call/:callId"
+          element={
+            <ProtectedRoute>
+              <CallPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/status"
+          element={
+            <ProtectedRoute>
+              <Status />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/archived"
+          element={
+            <ProtectedRoute>
+              <ArchivedChats />
+            </ProtectedRoute>
+          }
+        />
+        <Route path="*" element={<NotFound />} />
+      </Routes>
+    </BrowserRouter>
+  );
+}
+
+function App() {
+  return (
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
         <TooltipProvider>
           <Toaster />
           <Sonner />
-          <BrowserRouter>
-            <Routes>
-              <Route path="/" element={<Index />} />
-              <Route path="/auth" element={<Auth />} />
-              <Route
-                path="/chats"
-                element={
-                  <ProtectedRoute>
-                    <ChatList />
-                  </ProtectedRoute>
-                }
-              />
-              <Route
-                path="/chat/:chatId"
-                element={
-                  <ProtectedRoute>
-                    <ChatDetail />
-                  </ProtectedRoute>
-                }
-              />
-              <Route
-                path="/new-chat"
-                element={
-                  <ProtectedRoute>
-                    <NewChat />
-                  </ProtectedRoute>
-                }
-              />
-              <Route
-                path="/profile"
-                element={
-                  <ProtectedRoute>
-                    <Profile />
-                  </ProtectedRoute>
-                }
-              />
-              <Route
-                path="/profile/status"
-                element={
-                  <ProtectedRoute>
-                    <ProfileStatusDashboard />
-                  </ProtectedRoute>
-                }
-              />
-              <Route
-                path="/friends"
-                element={
-                  <ProtectedRoute>
-                    <Friends />
-                  </ProtectedRoute>
-                }
-              />
-              <Route
-                path="/calls"
-                element={
-                  <ProtectedRoute>
-                    <Calls />
-                  </ProtectedRoute>
-                }
-              />
-              <Route
-                path="/call/:callId"
-                element={
-                  <ProtectedRoute>
-                    <CallPage />
-                  </ProtectedRoute>
-                }
-              />
-              <Route
-                path="/status"
-                element={
-                  <ProtectedRoute>
-                    <Status />
-                  </ProtectedRoute>
-                }
-              />
-              <Route
-                path="/archived"
-                element={
-                  <ProtectedRoute>
-                    <ArchivedChats />
-                  </ProtectedRoute>
-                }
-              />
-              <Route path="*" element={<NotFound />} />
-            </Routes>
-          </BrowserRouter>
+          <AppContent />
         </TooltipProvider>
       </AuthProvider>
     </QueryClientProvider>
