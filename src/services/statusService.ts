@@ -13,7 +13,23 @@ export function useInfiniteStatusUpdates(pageSize = 10, viewMode = 'public') {
     queryFn: async ({ pageParam = null }) => {
       console.log('Fetching statuses with params:', { pageParam, viewMode, userId: user?.id });
       
-      // First, fetch status updates
+      // First, get friends list if viewing friends mode
+      let friendIds: string[] = [];
+      if (viewMode === 'friends' && user) {
+        const { data: friendships } = await supabase
+          .from('friendships')
+          .select('friend_id, user_id')
+          .or(`user_id.eq.${user.id},friend_id.eq.${user.id}`);
+        
+        // Extract friend IDs (bidirectional)
+        friendIds = friendships?.map(f => 
+          f.user_id === user.id ? f.friend_id : f.user_id
+        ) || [];
+        
+        console.log('User friends:', friendIds);
+      }
+      
+      // Build the status query
       let query = supabase
         .from('status_updates')
         .select(`
@@ -29,27 +45,18 @@ export function useInfiniteStatusUpdates(pageSize = 10, viewMode = 'public') {
         query = query.lt('created_at', pageParam);
       }
       
-      // Apply privacy filtering based on view mode
+      // Apply filtering based on view mode
       if (viewMode === 'public') {
+        // Only public posts
         query = query.eq('is_public', true);
       } else if (viewMode === 'friends' && user) {
-        // For friends view, get user's friends first
-        const { data: friendships } = await supabase
-          .from('friendships')
-          .select('friend_id, user_id')
-          .or(`user_id.eq.${user.id},friend_id.eq.${user.id}`);
-        
-        // Extract friend IDs
-        const friendIds = friendships?.map(f => 
-          f.user_id === user.id ? f.friend_id : f.user_id
-        ) || [];
-        
+        // Complex friends filtering: user's own posts OR friends' posts OR public posts
         if (friendIds.length > 0) {
-          // Include user's own posts and friends' posts
-          query = query.or(`user_id.eq.${user.id},user_id.in.(${friendIds.join(',')})`);
+          // Show: user's own posts OR friends' posts (any privacy) OR public posts
+          query = query.or(`user_id.eq.${user.id},and(user_id.in.(${friendIds.join(',')})),is_public.eq.true`);
         } else {
-          // If no friends, only show user's own posts
-          query = query.eq('user_id', user.id);
+          // If no friends, show user's own posts and public posts
+          query = query.or(`user_id.eq.${user.id},is_public.eq.true`);
         }
       }
       
@@ -134,7 +141,23 @@ export function useStatusUpdates(viewMode: 'friends' | 'public' = 'friends') {
   return useQuery({
     queryKey: ['status-updates', viewMode],
     queryFn: async () => {
-      // Fetch status updates without the problematic foreign key hint
+      // First, get friends list if viewing friends mode
+      let friendIds: string[] = [];
+      if (viewMode === 'friends' && user) {
+        const { data: friendships } = await supabase
+          .from('friendships')
+          .select('friend_id, user_id')
+          .or(`user_id.eq.${user.id},friend_id.eq.${user.id}`);
+        
+        // Extract friend IDs (bidirectional)
+        friendIds = friendships?.map(f => 
+          f.user_id === user.id ? f.friend_id : f.user_id
+        ) || [];
+        
+        console.log('User friends for status updates:', friendIds);
+      }
+      
+      // Fetch status updates with proper filtering
       let query = supabase
         .from('status_updates')
         .select(`
@@ -147,10 +170,16 @@ export function useStatusUpdates(viewMode: 'friends' | 'public' = 'friends') {
       
       // Filter based on view mode
       if (viewMode === 'public') {
-        query = query.eq('is_public', true).eq('privacy_level', 'public');
+        query = query.eq('is_public', true);
       } else if (viewMode === 'friends' && user) {
-        // Show all public posts OR user's own posts OR friends' posts
-        query = query.or(`is_public.eq.true,user_id.eq.${user.id}`);
+        // Complex friends filtering
+        if (friendIds.length > 0) {
+          // Show: user's own posts OR friends' posts OR public posts
+          query = query.or(`user_id.eq.${user.id},and(user_id.in.(${friendIds.join(',')})),is_public.eq.true`);
+        } else {
+          // If no friends, show user's own posts and public posts
+          query = query.or(`user_id.eq.${user.id},is_public.eq.true`);
+        }
       }
         
       const { data: statusData, error } = await query;

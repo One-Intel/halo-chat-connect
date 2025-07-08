@@ -1,3 +1,4 @@
+
 import { supabase } from '@/integrations/supabase/client';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/contexts/AuthContext';
@@ -29,7 +30,7 @@ export interface Participant {
 export interface Profile {
   id: string;
   username: string;
-  avatar_url?: string; // Make this optional
+  avatar_url?: string;
   user_id?: string;
 }
 
@@ -179,12 +180,17 @@ export function useChats() {
         const lastMessage = lastMessages.find(m => m?.chat_id === chat.id);
         const unreadData = unreadCounts.find(u => u.chatId === chat.id);
 
-        // Add profiles to participants
+        // Add profiles to participants with consistent fallback
         const participantsWithProfiles = chatParticipants.map(p => {
           const profile = profiles?.find(pr => pr.id === p.user_id);
           return {
             ...p,
-            profile: profile || { id: p.user_id, username: 'Unknown User', user_id: p.user_id }
+            profile: profile || { 
+              id: p.user_id, 
+              username: 'Unknown User', 
+              user_id: p.user_id,
+              avatar_url: null // Always include avatar_url, even if null
+            }
           };
         });
 
@@ -322,12 +328,17 @@ export function useChat(chatId: string) {
         throw messagesError;
       }
 
-      // Add profiles to participants
+      // Add profiles to participants with consistent fallback
       const participantsWithProfiles = participants?.map(p => {
         const profile = profiles?.find(pr => pr.id === p.user_id);
         return {
           ...p,
-          profile: profile || { id: p.user_id, username: 'Unknown User', user_id: p.user_id }
+          profile: profile || { 
+            id: p.user_id, 
+            username: 'Unknown User', 
+            user_id: p.user_id,
+            avatar_url: null // Always include avatar_url, even if null
+          }
         };
       }) || [];
 
@@ -352,7 +363,12 @@ export function useChat(chatId: string) {
           ...m,
           type: (m.type as 'text' | 'voice') || 'text',
           status: (m.status as 'sent' | 'delivered' | 'read') || 'sent',
-          profile: userProfile || { id: m.user_id, username: 'Unknown User', user_id: m.user_id },
+          profile: userProfile || { 
+            id: m.user_id, 
+            username: 'Unknown User', 
+            user_id: m.user_id,
+            avatar_url: null // Always include avatar_url, even if null
+          },
           user: { username: userProfile?.username || 'Unknown User' },
           reactions: [],
           reply_to_message
