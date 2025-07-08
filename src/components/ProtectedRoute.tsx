@@ -1,9 +1,14 @@
 
-import { Navigate, Outlet } from 'react-router-dom';
+import { Navigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { Loader2 } from 'lucide-react';
+import { ReactNode } from 'react';
 
-export default function ProtectedRoute() {
+interface ProtectedRouteProps {
+  children: ReactNode;
+}
+
+export default function ProtectedRoute({ children }: ProtectedRouteProps) {
   const { user, loading } = useAuth();
   
   console.log('ProtectedRoute - user:', user?.id, 'loading:', loading);
@@ -28,5 +33,5 @@ export default function ProtectedRoute() {
   
   // Allow access to protected routes
   console.log('ProtectedRoute - User authenticated, allowing access');
-  return <Outlet />;
+  return <>{children}</>;
 }
