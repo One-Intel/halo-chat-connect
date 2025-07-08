@@ -1,4 +1,3 @@
-
 import { supabase } from '@/integrations/supabase/client';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/contexts/AuthContext';
@@ -30,7 +29,7 @@ export interface Participant {
 export interface Profile {
   id: string;
   username: string;
-  avatar_url?: string;
+  avatar_url?: string; // Make this optional
   user_id?: string;
 }
 

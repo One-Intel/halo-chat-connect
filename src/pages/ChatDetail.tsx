@@ -42,7 +42,7 @@ const ChatDetail: React.FC = () => {
     isLoading, 
     isError,
     error
-  } = useChat(id);
+  } = useChat(id || '');
   
   const { 
     mutate: sendMessage, 
@@ -303,7 +303,11 @@ const ChatDetail: React.FC = () => {
           <Link to="/chats" className="mr-3">
             <ArrowLeft className="h-5 w-5" />
           </Link>
-          <Avatar src={otherParticipant?.profile?.avatar_url || undefined} alt={otherParticipant?.profile?.username || ''} status={otherParticipant ? (isOnline(otherParticipant.user_id) ? "online" : "offline") : null} />
+          <Avatar 
+            src={otherParticipant?.profile?.avatar_url} 
+            alt={otherParticipant?.profile?.username || ''} 
+            status={otherParticipant ? (isOnline(otherParticipant.user_id) ? "online" : "offline") : null} 
+          />
           <div className="ml-3">
             <h2 className="font-medium flex items-center">
               {otherParticipant?.profile?.username}
