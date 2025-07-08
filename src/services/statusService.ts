@@ -1,3 +1,4 @@
+
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useMutation, useQueryClient, useInfiniteQuery } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/AuthContext";
@@ -304,6 +305,52 @@ export function useCreateStatus() {
     },
     onSuccess: () => {
       // Invalidate with reduced frequency to prevent excessive refreshing
+      queryClient.invalidateQueries({ queryKey: ['status-updates-infinite'] });
+      queryClient.invalidateQueries({ queryKey: ['status-updates'] });
+    },
+  });
+}
+
+// Update status
+export function useUpdateStatus() {
+  const { user } = useAuth();
+  const queryClient = useQueryClient();
+  
+  return useMutation({
+    mutationFn: async ({ 
+      statusId, 
+      content,
+      privacyLevel,
+      isPublic
+    }: { 
+      statusId: string; 
+      content?: string;
+      privacyLevel?: 'public' | 'friends';
+      isPublic?: boolean;
+    }) => {
+      if (!user) throw new Error('No user authenticated');
+      
+      const updateData: any = {};
+      if (content !== undefined) updateData.content = content;
+      if (privacyLevel !== undefined) updateData.privacy_level = privacyLevel;
+      if (isPublic !== undefined) updateData.is_public = isPublic;
+      
+      const { data, error } = await supabase
+        .from('status_updates')
+        .update(updateData)
+        .eq('id', statusId)
+        .eq('user_id', user.id)
+        .select('*')
+        .single();
+        
+      if (error) {
+        console.error('Error updating status:', error);
+        throw new Error(`Failed to update status: ${error.message}`);
+      }
+      
+      return data;
+    },
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['status-updates-infinite'] });
       queryClient.invalidateQueries({ queryKey: ['status-updates'] });
     },

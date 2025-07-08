@@ -1,67 +1,136 @@
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
-import { ThemeProvider } from "next-themes";
+
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "./contexts/AuthContext";
 import ProtectedRoute from "./components/ProtectedRoute";
 import Index from "./pages/Index";
 import Auth from "./pages/Auth";
 import ChatList from "./pages/ChatList";
 import ChatDetail from "./pages/ChatDetail";
-import Calls from "./pages/Calls";
 import NewChat from "./pages/NewChat";
-import Friends from "./pages/Friends";
 import Profile from "./pages/Profile";
+import ProfileStatusDashboard from "./pages/ProfileStatusDashboard";
+import Friends from "./pages/Friends";
+import Calls from "./pages/Calls";
+import CallPage from "./pages/CallPage";
+import Status from "./pages/Status";
 import ArchivedChats from "./pages/ArchivedChats";
 import NotFound from "./pages/NotFound";
-import CallPage from "./pages/CallPage"; // Import the new call page component
-import StatusPage from "./pages/Status"; // Import the Status page component
-import ProfileStatusDashboard from "./pages/ProfileStatusDashboard";
+import { useNotifications } from "./services/notificationService";
+import { pushNotificationService } from "./services/pushNotificationService";
+import React, { useEffect } from "react";
 
-const queryClient = new QueryClient({
-  defaultOptions: {
-    queries: {
-      retry: 1,
-      staleTime: 5 * 60 * 1000, // 5 minutes
-    },
-  },
-});
+const queryClient = new QueryClient();
 
-const App = () => (
-  <QueryClientProvider client={queryClient}>
-    <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
-      <TooltipProvider>
-        <Toaster />
-        <Sonner />
-        <BrowserRouter>
-          <AuthProvider>
+function App() {
+  // Initialize notifications
+  useNotifications();
+
+  // Initialize push notifications
+  useEffect(() => {
+    pushNotificationService.initialize().catch(console.error);
+  }, []);
+
+  return (
+    <QueryClientProvider client={queryClient}>
+      <AuthProvider>
+        <TooltipProvider>
+          <Toaster />
+          <Sonner />
+          <BrowserRouter>
             <Routes>
               <Route path="/" element={<Index />} />
               <Route path="/auth" element={<Auth />} />
-              
-              {/* Protected Routes */}
-              <Route element={<ProtectedRoute />}>
-                <Route path="/chats" element={<ChatList />} />
-                <Route path="/chat/:id" element={<ChatDetail />} />
-                <Route path="/calls" element={<Calls />} />
-                <Route path="/call/:id" element={<CallPage />} /> {/* Use CallPage */}
-                <Route path="/new-chat" element={<NewChat />} />
-                <Route path="/friends" element={<Friends />} />
-                <Route path="/profile" element={<Profile />} />
-                <Route path="/profile/status-dashboard" element={<ProfileStatusDashboard />} />
-                <Route path="/archived-chats" element={<ArchivedChats />} />
-                <Route path="/status" element={<StatusPage />} /> {/* Add StatusPage route */}
-              </Route>
-              
+              <Route
+                path="/chats"
+                element={
+                  <ProtectedRoute>
+                    <ChatList />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/chat/:chatId"
+                element={
+                  <ProtectedRoute>
+                    <ChatDetail />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/new-chat"
+                element={
+                  <ProtectedRoute>
+                    <NewChat />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/profile"
+                element={
+                  <ProtectedRoute>
+                    <Profile />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/profile/status"
+                element={
+                  <ProtectedRoute>
+                    <ProfileStatusDashboard />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/friends"
+                element={
+                  <ProtectedRoute>
+                    <Friends />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/calls"
+                element={
+                  <ProtectedRoute>
+                    <Calls />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/call/:callId"
+                element={
+                  <ProtectedRoute>
+                    <CallPage />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/status"
+                element={
+                  <ProtectedRoute>
+                    <Status />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/archived"
+                element={
+                  <ProtectedRoute>
+                    <ArchivedChats />
+                  </ProtectedRoute>
+                }
+              />
               <Route path="*" element={<NotFound />} />
             </Routes>
-          </AuthProvider>
-        </BrowserRouter>
-      </TooltipProvider>
-    </ThemeProvider>
-  </QueryClientProvider>
-);
+          </BrowserRouter>
+        </TooltipProvider>
+      </AuthProvider>
+    </QueryClientProvider>
+  );
+}
 
 export default App;
