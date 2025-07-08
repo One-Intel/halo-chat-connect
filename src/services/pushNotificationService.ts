@@ -1,6 +1,5 @@
 
 import React from 'react';
-import { supabase } from '@/integrations/supabase/client';
 
 export class PushNotificationService {
   private static instance: PushNotificationService;
@@ -17,29 +16,37 @@ export class PushNotificationService {
   }
 
   async initialize() {
-    if ('serviceWorker' in navigator && 'PushManager' in window) {
-      try {
-        // Register service worker
-        this.registration = await navigator.serviceWorker.register('/sw.js');
-        console.log('Service Worker registered successfully');
+    // Check for browser support first
+    if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
+      console.log('Push messaging is not supported in this browser');
+      return;
+    }
 
-        // Request notification permission
-        const permission = await this.requestPermission();
-        if (permission === 'granted') {
-          await this.subscribeUser();
-        }
-      } catch (error) {
-        console.error('Service Worker registration failed:', error);
+    try {
+      // Register service worker
+      this.registration = await navigator.serviceWorker.register('/sw.js');
+      console.log('Service Worker registered successfully');
+
+      // Request notification permission
+      const permission = await this.requestPermission();
+      if (permission === 'granted') {
+        await this.subscribeUser();
       }
-    } else {
-      console.log('Push messaging is not supported');
+    } catch (error) {
+      console.warn('Service Worker registration failed:', error);
+      // Don't throw error to prevent breaking the app
     }
   }
 
   async requestPermission(): Promise<NotificationPermission> {
-    const permission = await Notification.requestPermission();
-    console.log('Notification permission:', permission);
-    return permission;
+    try {
+      const permission = await Notification.requestPermission();
+      console.log('Notification permission:', permission);
+      return permission;
+    } catch (error) {
+      console.warn('Failed to request notification permission:', error);
+      return 'denied';
+    }
   }
 
   async subscribeUser() {
@@ -64,7 +71,8 @@ export class PushNotificationService {
       // We'll need to create the push_subscriptions table first
       console.log('Push subscription:', subscription);
     } catch (error) {
-      console.error('Failed to subscribe user:', error);
+      console.warn('Failed to subscribe user to push notifications:', error);
+      // Don't throw error to prevent breaking the app
     }
   }
 
@@ -74,7 +82,7 @@ export class PushNotificationService {
         await this.subscription.unsubscribe();
         console.log('User unsubscribed from push notifications');
       } catch (error) {
-        console.error('Error unsubscribing:', error);
+        console.warn('Error unsubscribing from push notifications:', error);
       }
     }
   }
@@ -107,11 +115,15 @@ export class PushNotificationService {
   // Show a local notification (for testing)
   showLocalNotification(title: string, options: NotificationOptions = {}) {
     if (Notification.permission === 'granted') {
-      new Notification(title, {
-        icon: '/favicon.ico',
-        badge: '/favicon.ico',
-        ...options
-      });
+      try {
+        new Notification(title, {
+          icon: '/favicon.ico',
+          badge: '/favicon.ico',
+          ...options
+        });
+      } catch (error) {
+        console.warn('Failed to show notification:', error);
+      }
     }
   }
 }
@@ -130,28 +142,43 @@ export function usePushNotifications() {
     setIsSupported(service.isSupported());
     setPermission(service.getPermissionStatus());
     
-    // Initialize service
+    // Initialize service with error handling
     service.initialize().then(() => {
       setIsSubscribed(true);
-    }).catch(() => {
+    }).catch((error) => {
+      console.warn('Push notification initialization failed:', error);
       setIsSubscribed(false);
     });
   }, []);
 
   const requestPermission = async () => {
-    const newPermission = await pushNotificationService.requestPermission();
-    setPermission(newPermission);
-    return newPermission;
+    try {
+      const newPermission = await pushNotificationService.requestPermission();
+      setPermission(newPermission);
+      return newPermission;
+    } catch (error) {
+      console.warn('Failed to request permission:', error);
+      return 'denied';
+    }
   };
 
   const subscribe = async () => {
-    await pushNotificationService.subscribeUser();
-    setIsSubscribed(true);
+    try {
+      await pushNotificationService.subscribeUser();
+      setIsSubscribed(true);
+    } catch (error) {
+      console.warn('Failed to subscribe:', error);
+      setIsSubscribed(false);
+    }
   };
 
   const unsubscribe = async () => {
-    await pushNotificationService.unsubscribe();
-    setIsSubscribed(false);
+    try {
+      await pushNotificationService.unsubscribe();
+      setIsSubscribed(false);
+    } catch (error) {
+      console.warn('Failed to unsubscribe:', error);
+    }
   };
 
   return {

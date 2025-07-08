@@ -1,5 +1,5 @@
+
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { Session, User } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
@@ -19,7 +19,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
-  const navigate = useNavigate();
   const { toast } = useToast();
 
   // Handle profile creation/update after authentication
@@ -262,7 +261,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             description: `Welcome to WispaChat! Your user ID: ${profile?.user_id || userId}`,
           });
           
-          navigate('/chats');
+          // Navigate programmatically using window.location instead of useNavigate
+          window.location.href = '/chats';
         } catch (profileError: any) {
           // If profile creation fails, sign out the user and show error
           await supabase.auth.signOut();
@@ -349,7 +349,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (error) throw error;
       
       console.log('User signed out successfully');
-      navigate('/auth');
+      // Navigate using window.location instead of useNavigate
+      window.location.href = '/auth';
     } catch (error: any) {
       console.error('Signout error:', error);
       toast({
