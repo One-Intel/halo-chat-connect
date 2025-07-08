@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Camera, User } from 'lucide-react';
@@ -8,7 +9,6 @@ import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import NavBar from '@/components/NavBar';
 import { uploadFile, deleteFile } from '@/services/fileUploadService';
-import ProfileStatusDashboard from './ProfileStatusDashboard';
 
 const Profile: React.FC = () => {
   const { user, signOut } = useAuth();
@@ -30,24 +30,45 @@ const Profile: React.FC = () => {
           .eq('id', user.id)
           .single();
 
-        if (error) throw error;
+        if (error) {
+          // If no profile exists, create one
+          if (error.code === 'PGRST116') {
+            const newId = Math.floor(100000 + Math.random() * 900000).toString();
+            
+            const { error: insertError } = await supabase
+              .from('profiles')
+              .insert({
+                id: user.id,
+                username: user.email?.split('@')[0] || 'User',
+                user_id: newId,
+                avatar_url: null
+              });
 
-        if (data) {
+            if (insertError) {
+              console.error('Error creating profile:', insertError);
+            } else {
+              setUsername(user.email?.split('@')[0] || 'User');
+              setUserId(newId);
+            }
+          } else {
+            throw error;
+          }
+        } else if (data) {
           setUsername(data.username || '');
           setAvatarUrl(data.avatar_url);
           setUserId(data.user_id || '');
-        }
 
-        // If no user ID exists in profile, generate one
-        if (!data?.user_id) {
-          const newId = Math.floor(100000 + Math.random() * 900000).toString();
-          setUserId(newId);
-          
-          // Save the new ID to the profile
-          await supabase
-            .from('profiles')
-            .update({ user_id: newId })
-            .eq('id', user.id);
+          // If no user ID exists in profile, generate one
+          if (!data.user_id) {
+            const newId = Math.floor(100000 + Math.random() * 900000).toString();
+            setUserId(newId);
+            
+            // Save the new ID to the profile
+            await supabase
+              .from('profiles')
+              .update({ user_id: newId })
+              .eq('id', user.id);
+          }
         }
       } catch (error) {
         console.error('Error fetching profile:', error);
@@ -72,12 +93,15 @@ const Profile: React.FC = () => {
       const { error } = await supabase
         .from('profiles')
         .update({ 
-          username,
+          username: username.trim(),
           updated_at: new Date().toISOString()
         })
         .eq('id', user.id);
 
-      if (error) throw error;
+      if (error) {
+        console.error('Update error:', error);
+        throw error;
+      }
 
       toast({
         title: 'Success',
@@ -87,7 +111,7 @@ const Profile: React.FC = () => {
       console.error('Error updating profile:', error);
       toast({
         title: 'Error',
-        description: 'Failed to update profile',
+        description: 'Failed to update profile. Please try again.',
         variant: 'destructive',
       });
     } finally {
@@ -169,6 +193,10 @@ const Profile: React.FC = () => {
     }
   };
 
+  const handleStatusDashboard = () => {
+    navigate('/profile/status');
+  };
+
   if (loading) {
     return (
       <div className="wispa-container flex items-center justify-center">
@@ -236,6 +264,7 @@ const Profile: React.FC = () => {
               value={username}
               onChange={(e) => setUsername(e.target.value)}
               disabled={updating}
+              placeholder="Enter your username"
             />
           </div>
 
@@ -253,7 +282,7 @@ const Profile: React.FC = () => {
 
           <Button
             onClick={handleUpdateProfile}
-            disabled={updating}
+            disabled={updating || !username.trim()}
             className="w-full bg-wispa-500 hover:bg-wispa-600"
           >
             {updating ? 'Updating...' : 'Update Profile'}
@@ -269,11 +298,12 @@ const Profile: React.FC = () => {
         </div>
 
         <div className="mt-8 flex justify-center">
-          <Link to="/profile/status-dashboard">
-            <Button className="bg-primary hover:bg-primary/90 text-primary-foreground rounded-full px-6 py-2 shadow-lg">
-              My Status Dashboard
-            </Button>
-          </Link>
+          <Button 
+            onClick={handleStatusDashboard}
+            className="bg-primary hover:bg-primary/90 text-primary-foreground rounded-full px-6 py-2 shadow-lg"
+          >
+            My Status Dashboard
+          </Button>
         </div>
       </div>
 

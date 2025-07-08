@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import CreateStatusModal from "./CreateStatusModal";
 import NavBar from "@/components/NavBar";
 import StatusStoryBar from "./StatusStoryBar";
@@ -10,7 +10,7 @@ import ReshareModal from "./ReshareModal";
 import { useInfiniteStatusUpdates, useShareStatus, useReactToStatus, useViewStatus, useDeleteStatus } from '@/services/statusService';
 import { StatusUpdate } from '@/types/status';
 import { formatDistanceToNow } from 'date-fns';
-import { MessageCircle, Share, Eye, MoreVertical, Heart, Play, Pause, Edit, Trash2 } from 'lucide-react';
+import { MessageCircle, Share, Eye, MoreVertical, Heart, Play, Pause, Edit, Trash2, Volume2, VolumeX } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Badge } from '@/components/ui/badge';
@@ -26,6 +26,10 @@ const StatusFeed: React.FC = () => {
   const [resharingStatus, setResharingStatus] = useState<StatusUpdate | null>(null);
   const [expandedComments, setExpandedComments] = useState<Set<string>>(new Set());
   const [playingVideos, setPlayingVideos] = useState<Set<string>>(new Set());
+  const [mutedVideos, setMutedVideos] = useState<Set<string>>(new Set());
+  const [currentVideoIndex, setCurrentVideoIndex] = useState(0);
+  const videoRefs = useRef<Map<string, HTMLVideoElement>>(new Map());
+  const containerRef = useRef<HTMLDivElement>(null);
   const { user } = useAuth();
   
   const {
@@ -44,6 +48,45 @@ const StatusFeed: React.FC = () => {
   
   const statuses: StatusUpdate[] = data ? data.pages.flat() as StatusUpdate[] : [];
 
+  // Auto-play videos when in viewport (TikTok-style)
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          const statusId = entry.target.getAttribute('data-status-id');
+          const video = entry.target.querySelector('video') as HTMLVideoElement;
+          
+          if (statusId && video) {
+            if (entry.isIntersecting && entry.intersectionRatio > 0.7) {
+              // Auto-play when more than 70% visible
+              video.play().catch(e => console.log('Auto-play failed:', e));
+              setPlayingVideos(prev => new Set([...prev, statusId]));
+              
+              // Mark as viewed
+              if (user) {
+                viewStatus.mutate({ statusId });
+              }
+            } else {
+              // Pause when not in view
+              video.pause();
+              setPlayingVideos(prev => {
+                const newSet = new Set(prev);
+                newSet.delete(statusId);
+                return newSet;
+              });
+            }
+          }
+        });
+      },
+      { threshold: [0.7] }
+    );
+
+    const statusElements = document.querySelectorAll('[data-status-id]');
+    statusElements.forEach((el) => observer.observe(el));
+
+    return () => observer.disconnect();
+  }, [statuses, user, viewStatus]);
+
   // Infinite scroll handler
   React.useEffect(() => {
     const handleScroll = () => {
@@ -58,28 +101,6 @@ const StatusFeed: React.FC = () => {
     window.addEventListener('scroll', handleScroll);
     return () => window.removeEventListener('scroll', handleScroll);
   }, [hasNextPage, isFetchingNextPage, fetchNextPage]);
-
-  // Auto-mark statuses as viewed when they come into view
-  useEffect(() => {
-    const observer = new IntersectionObserver(
-      (entries) => {
-        entries.forEach((entry) => {
-          if (entry.isIntersecting) {
-            const statusId = entry.target.getAttribute('data-status-id');
-            if (statusId && user) {
-              viewStatus.mutate({ statusId });
-            }
-          }
-        });
-      },
-      { threshold: 0.5 }
-    );
-
-    const statusElements = document.querySelectorAll('[data-status-id]');
-    statusElements.forEach((el) => observer.observe(el));
-
-    return () => observer.disconnect();
-  }, [statuses, user, viewStatus]);
 
   const toggleComments = (statusId: string) => {
     const newExpanded = new Set(expandedComments);
@@ -135,13 +156,36 @@ const StatusFeed: React.FC = () => {
   };
 
   const toggleVideoPlay = (statusId: string) => {
-    const newPlaying = new Set(playingVideos);
-    if (newPlaying.has(statusId)) {
-      newPlaying.delete(statusId);
-    } else {
-      newPlaying.add(statusId);
+    const video = videoRefs.current.get(statusId);
+    if (video) {
+      if (playingVideos.has(statusId)) {
+        video.pause();
+        setPlayingVideos(prev => {
+          const newSet = new Set(prev);
+          newSet.delete(statusId);
+          return newSet;
+        });
+      } else {
+        video.play().catch(e => console.log('Play failed:', e));
+        setPlayingVideos(prev => new Set([...prev, statusId]));
+      }
     }
-    setPlayingVideos(newPlaying);
+  };
+
+  const toggleMute = (statusId: string) => {
+    const video = videoRefs.current.get(statusId);
+    if (video) {
+      video.muted = !video.muted;
+      if (video.muted) {
+        setMutedVideos(prev => new Set([...prev, statusId]));
+      } else {
+        setMutedVideos(prev => {
+          const newSet = new Set(prev);
+          newSet.delete(statusId);
+          return newSet;
+        });
+      }
+    }
   };
 
   const getMediaType = (url: string): 'image' | 'video' | 'audio' | 'document' => {
@@ -169,31 +213,57 @@ const StatusFeed: React.FC = () => {
           <img 
             src={media.media_url} 
             alt="status media" 
-            className="w-full h-full object-contain bg-black" 
-            style={{ maxHeight: '100vh' }}
+            className="w-full h-full object-cover" 
           />
         );
       case 'video':
         return (
-          <div className="relative w-full h-full flex items-center justify-center bg-black">
+          <div className="relative w-full h-full">
             <video 
+              ref={(el) => {
+                if (el) {
+                  videoRefs.current.set(status.id, el);
+                }
+              }}
               src={media.media_url} 
-              className="w-full h-full max-h-screen object-contain"
+              className="w-full h-full object-cover"
               loop
-              muted
+              muted={mutedVideos.has(status.id)}
               playsInline
-              autoPlay={playingVideos.has(status.id)}
-              controls={playingVideos.has(status.id)}
+              preload="metadata"
+              poster={`${media.media_url}#t=0.5`}
               onClick={() => toggleVideoPlay(status.id)}
             />
+            
+            {/* Play/Pause overlay */}
             {!playingVideos.has(status.id) && (
-              <button
-                onClick={() => toggleVideoPlay(status.id)}
-                className="absolute inset-0 flex items-center justify-center bg-black/20 hover:bg-black/40 transition-colors"
-              >
-                <Play className="h-16 w-16 text-white" />
-              </button>
+              <div className="absolute inset-0 flex items-center justify-center bg-black/20">
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    toggleVideoPlay(status.id);
+                  }}
+                  className="bg-white/20 backdrop-blur-sm rounded-full p-4 hover:bg-white/30 transition-colors"
+                >
+                  <Play className="h-12 w-12 text-white" />
+                </button>
+              </div>
             )}
+            
+            {/* Mute/Unmute button */}
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                toggleMute(status.id);
+              }}
+              className="absolute bottom-4 right-4 bg-black/50 backdrop-blur-sm rounded-full p-2 hover:bg-black/70 transition-colors"
+            >
+              {mutedVideos.has(status.id) ? (
+                <VolumeX className="h-5 w-5 text-white" />
+              ) : (
+                <Volume2 className="h-5 w-5 text-white" />
+              )}
+            </button>
           </div>
         );
       case 'audio':
@@ -226,7 +296,7 @@ const StatusFeed: React.FC = () => {
   };
 
   return (
-    <div className="flex flex-col h-screen bg-background">
+    <div className="flex flex-col h-screen bg-background" ref={containerRef}>
       {/* Header */}
       <header className="flex justify-between items-center p-4 bg-background shadow-sm sticky top-0 z-10 border-b border-border">
         <h2 className="text-xl font-bold text-foreground">Status</h2>
@@ -270,7 +340,7 @@ const StatusFeed: React.FC = () => {
       </div>
       
       {/* TikTok-like Status Feed */}
-      <div className="flex-1 overflow-y-auto bg-background">
+      <div className="flex-1 overflow-y-auto bg-background snap-y snap-mandatory">
         {status === 'pending' && (
           <div className="flex items-center justify-center h-full text-muted-foreground text-lg">
             Loading statuses...
@@ -297,15 +367,15 @@ const StatusFeed: React.FC = () => {
             </Button>
           </div>
         ) : (
-          <div className="divide-y divide-border">
+          <div>
             {statuses.map((status, idx) => (
               <div 
                 key={status.id || idx} 
                 data-status-id={status.id}
-                className="relative min-h-screen flex flex-col bg-card"
+                className="relative h-screen flex flex-col bg-card snap-start"
               >
                 {/* Status Content - Full Screen */}
-                <div className="flex-1 relative">
+                <div className="flex-1 relative overflow-hidden">
                   {/* Media Background */}
                   {status.media && status.media.length > 0 ? (
                     <div className="absolute inset-0 bg-black">
