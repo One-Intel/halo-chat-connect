@@ -1,4 +1,5 @@
 
+import React from 'react';
 import { supabase } from '@/integrations/supabase/client';
 
 export class PushNotificationService {
@@ -59,36 +60,11 @@ export class PushNotificationService {
       this.subscription = subscription;
       console.log('User subscribed to push notifications');
 
-      // Save subscription to database
-      await this.saveSubscription(subscription);
+      // For now, just log the subscription instead of saving to database
+      // We'll need to create the push_subscriptions table first
+      console.log('Push subscription:', subscription);
     } catch (error) {
       console.error('Failed to subscribe user:', error);
-    }
-  }
-
-  private async saveSubscription(subscription: PushSubscription) {
-    const user = (await supabase.auth.getUser()).data.user;
-    if (!user) return;
-
-    try {
-      const { error } = await supabase
-        .from('push_subscriptions')
-        .upsert({
-          user_id: user.id,
-          endpoint: subscription.endpoint,
-          p256dh: subscription.getKey('p256dh') ? btoa(String.fromCharCode.apply(null, Array.from(new Uint8Array(subscription.getKey('p256dh')!)))) : null,
-          auth: subscription.getKey('auth') ? btoa(String.fromCharCode.apply(null, Array.from(new Uint8Array(subscription.getKey('auth')!)))) : null,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString()
-        });
-
-      if (error) {
-        console.error('Error saving subscription:', error);
-      } else {
-        console.log('Subscription saved successfully');
-      }
-    } catch (error) {
-      console.error('Error saving subscription:', error);
     }
   }
 
@@ -97,15 +73,6 @@ export class PushNotificationService {
       try {
         await this.subscription.unsubscribe();
         console.log('User unsubscribed from push notifications');
-        
-        // Remove from database
-        const user = (await supabase.auth.getUser()).data.user;
-        if (user) {
-          await supabase
-            .from('push_subscriptions')
-            .delete()
-            .eq('user_id', user.id);
-        }
       } catch (error) {
         console.error('Error unsubscribing:', error);
       }

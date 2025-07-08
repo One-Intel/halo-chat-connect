@@ -115,7 +115,7 @@ const ReshareModal: React.FC<ReshareModalProps> = ({
               <Avatar 
                 src={originalStatus.user?.avatar_url} 
                 alt={originalStatus.user?.username || 'User'} 
-                size="xs"
+                size="sm"
               />
               <div>
                 <span className="text-sm font-medium">
