@@ -113,18 +113,23 @@ export function useChats() {
           user_id,
           chat_id,
           role,
-          created_at,
-          profiles!participants_user_id_fkey(
-            id,
-            username,
-            avatar_url,
-            user_id
-          )
+          created_at
         `)
         .in('chat_id', chatIds);
 
       if (allParticipantsError) {
         console.error('Error fetching all participants:', allParticipantsError);
+      }
+
+      // Get profiles for participants
+      const participantUserIds = allParticipants?.map(p => p.user_id) || [];
+      const { data: profiles, error: profilesError } = await supabase
+        .from('profiles')
+        .select('id, username, avatar_url, user_id')
+        .in('id', participantUserIds);
+
+      if (profilesError) {
+        console.error('Error fetching profiles:', profilesError);
       }
 
       // Get last message for each chat
@@ -141,12 +146,7 @@ export function useChats() {
               media_url,
               file_name,
               created_at,
-              status,
-              profiles!messages_user_id_fkey(
-                id,
-                username,
-                avatar_url
-              )
+              status
             `)
             .eq('chat_id', chatId)
             .is('deleted_at', null)
@@ -180,13 +180,23 @@ export function useChats() {
         const lastMessage = lastMessages.find(m => m?.chat_id === chat.id);
         const unreadData = unreadCounts.find(u => u.chatId === chat.id);
 
+        // Add profiles to participants
+        const participantsWithProfiles = chatParticipants.map(p => {
+          const profile = profiles?.find(pr => pr.id === p.user_id);
+          return {
+            ...p,
+            profile: profile || { id: p.user_id, username: 'Unknown User', user_id: p.user_id }
+          };
+        });
+
         return {
           ...chat,
-          participants: chatParticipants.map(p => ({
-            ...p,
-            profile: Array.isArray(p.profiles) ? p.profiles[0] : p.profiles
-          })),
-          lastMessage: lastMessage || undefined,
+          participants: participantsWithProfiles,
+          lastMessage: lastMessage ? {
+            ...lastMessage,
+            type: (lastMessage.type as 'text' | 'voice') || 'text',
+            status: (lastMessage.status as 'sent' | 'delivered' | 'read') || 'sent'
+          } : undefined,
           unreadCount: unreadData?.unreadCount || 0
         };
       });
@@ -264,19 +274,24 @@ export function useChat(chatId: string) {
           user_id,
           chat_id,
           role,
-          created_at,
-          profiles!participants_user_id_fkey(
-            id,
-            username,
-            avatar_url,
-            user_id
-          )
+          created_at
         `)
         .eq('chat_id', chatId);
 
       if (participantsError) {
         console.error('Participants fetch error:', participantsError);
         throw participantsError;
+      }
+
+      // Get profiles for participants
+      const participantUserIds = participants?.map(p => p.user_id) || [];
+      const { data: profiles, error: profilesError } = await supabase
+        .from('profiles')
+        .select('id, username, avatar_url, user_id')
+        .in('id', participantUserIds);
+
+      if (profilesError) {
+        console.error('Profiles fetch error:', profilesError);
       }
 
       // Get messages
@@ -297,12 +312,7 @@ export function useChat(chatId: string) {
           reply_to,
           forwarded_from,
           deleted_at,
-          deleted_by,
-          profiles!messages_user_id_fkey(
-            id,
-            username,
-            avatar_url
-          )
+          deleted_by
         `)
         .eq('chat_id', chatId)
         .is('deleted_at', null)
@@ -313,20 +323,47 @@ export function useChat(chatId: string) {
         throw messagesError;
       }
 
+      // Add profiles to participants
+      const participantsWithProfiles = participants?.map(p => {
+        const profile = profiles?.find(pr => pr.id === p.user_id);
+        return {
+          ...p,
+          profile: profile || { id: p.user_id, username: 'Unknown User', user_id: p.user_id }
+        };
+      }) || [];
+
+      // Process messages with reply information
+      const processedMessages = messages?.map(m => {
+        const userProfile = profiles?.find(p => p.id === m.user_id);
+        let reply_to_message = undefined;
+        
+        if (m.reply_to) {
+          const replyMessage = messages.find(rm => rm.id === m.reply_to);
+          if (replyMessage) {
+            const replyUserProfile = profiles?.find(p => p.id === replyMessage.user_id);
+            reply_to_message = {
+              content: replyMessage.content,
+              type: (replyMessage.type as 'text' | 'voice') || 'text',
+              user: { username: replyUserProfile?.username || 'Unknown User' }
+            };
+          }
+        }
+
+        return {
+          ...m,
+          type: (m.type as 'text' | 'voice') || 'text',
+          status: (m.status as 'sent' | 'delivered' | 'read') || 'sent',
+          profile: userProfile || { id: m.user_id, username: 'Unknown User', user_id: m.user_id },
+          user: { username: userProfile?.username || 'Unknown User' },
+          reactions: [],
+          reply_to_message
+        };
+      }) || [];
+
       const result = {
         ...chat,
-        participants: participants?.map(p => ({
-          ...p,
-          profile: Array.isArray(p.profiles) ? p.profiles[0] : p.profiles
-        })) || [],
-        messages: messages?.map(m => ({
-          ...m,
-          type: m.type as 'text' | 'voice',
-          status: m.status as 'sent' | 'delivered' | 'read',
-          profile: Array.isArray(m.profiles) ? m.profiles[0] : m.profiles,
-          user: Array.isArray(m.profiles) ? m.profiles[0] : m.profiles,
-          reactions: []
-        })) || []
+        participants: participantsWithProfiles,
+        messages: processedMessages
       };
 
       console.log('Chat fetch result for', chatId, ':', result);
