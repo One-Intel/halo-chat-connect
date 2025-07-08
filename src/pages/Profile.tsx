@@ -119,31 +119,55 @@ const Profile: React.FC = () => {
     try {
       console.log('Updating profile with:', { username: username.trim(), userId: user.id });
       
-      // Use upsert to handle both insert and update cases
-      const { data: updatedProfile, error: upsertError } = await supabase
+      // First check if profile exists
+      const { data: existingProfile } = await supabase
         .from('profiles')
-        .upsert({
-          id: user.id,
-          username: username.trim(),
-          user_id: userId || Math.floor(100000 + Math.random() * 900000).toString(),
-          avatar_url: avatarUrl,
-          updated_at: new Date().toISOString()
-        }, {
-          onConflict: 'id'
-        })
-        .select('*')
-        .single();
+        .select('id')
+        .eq('id', user.id)
+        .maybeSingle();
+      
+      if (existingProfile) {
+        // Profile exists, update it
+        const { data: updatedProfile, error: updateError } = await supabase
+          .from('profiles')
+          .update({
+            username: username.trim(),
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', user.id)
+          .select('*')
+          .maybeSingle();
 
-      console.log('Profile upsert result:', { updatedProfile, upsertError });
+        console.log('Profile update result:', { updatedProfile, updateError });
 
-      if (upsertError) {
-        console.error('Upsert error:', upsertError);
-        throw upsertError;
-      }
+        if (updateError) {
+          console.error('Update error:', updateError);
+          throw updateError;
+        }
+      } else {
+        // Profile doesn't exist, create it
+        const newUserId = userId || Math.floor(100000 + Math.random() * 900000).toString();
+        
+        const { data: newProfile, error: insertError } = await supabase
+          .from('profiles')
+          .insert({
+            id: user.id,
+            username: username.trim(),
+            user_id: newUserId,
+            avatar_url: avatarUrl,
+            updated_at: new Date().toISOString()
+          })
+          .select('*')
+          .single();
 
-      // Update local state with the returned data
-      if (updatedProfile) {
-        setUserId(updatedProfile.user_id || userId);
+        console.log('Profile creation result:', { newProfile, insertError });
+
+        if (insertError) {
+          console.error('Insert error:', insertError);
+          throw insertError;
+        }
+        
+        setUserId(newUserId);
       }
 
       toast({
@@ -211,18 +235,14 @@ const Profile: React.FC = () => {
 
       console.log('New avatar URL:', newAvatarUrl);
 
-      // Update profile with new avatar URL using upsert
+      // Update profile with new avatar URL
       const { error: updateError } = await supabase
         .from('profiles')
-        .upsert({
-          id: user.id,
-          username: username || user.email?.split('@')[0] || 'User',
-          user_id: userId || Math.floor(100000 + Math.random() * 900000).toString(),
+        .update({
           avatar_url: newAvatarUrl,
           updated_at: new Date().toISOString()
-        }, {
-          onConflict: 'id'
-        });
+        })
+        .eq('id', user.id);
 
       if (updateError) {
         console.error('Error updating avatar:', updateError);

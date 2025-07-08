@@ -1,4 +1,3 @@
-
 import { supabase } from '@/integrations/supabase/client';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/contexts/AuthContext';
@@ -30,7 +29,7 @@ export interface Participant {
 export interface Profile {
   id: string;
   username: string;
-  avatar_url?: string;
+  avatar_url?: string | null;
   user_id?: string;
 }
 
@@ -189,7 +188,7 @@ export function useChats() {
               id: p.user_id, 
               username: 'Unknown User', 
               user_id: p.user_id,
-              avatar_url: null // Always include avatar_url, even if null
+              avatar_url: null
             }
           };
         });
@@ -235,17 +234,15 @@ export function useChat(chatId: string) {
         .select('chat_id')
         .eq('chat_id', chatId)
         .eq('user_id', user.id)
-        .single();
+        .maybeSingle();
 
       if (participantError) {
         console.error('Participant check error:', participantError);
-        if (participantError.code === 'PGRST116') {
-          throw new Error('Chat not found or you do not have access');
-        }
-        throw participantError;
+        throw new Error(`Failed to verify chat access: ${participantError.message}`);
       }
 
       if (!participantCheck) {
+        console.error('User is not a participant in chat:', chatId);
         throw new Error('You are not a participant in this chat');
       }
 
@@ -261,14 +258,16 @@ export function useChat(chatId: string) {
           updated_at
         `)
         .eq('id', chatId)
-        .single();
+        .maybeSingle();
 
       if (chatError) {
         console.error('Chat fetch error:', chatError);
-        if (chatError.code === 'PGRST116') {
-          throw new Error('Chat not found');
-        }
-        throw chatError;
+        throw new Error(`Failed to fetch chat: ${chatError.message}`);
+      }
+
+      if (!chat) {
+        console.error('Chat not found:', chatId);
+        throw new Error('Chat not found');
       }
 
       // Get all participants
@@ -337,7 +336,7 @@ export function useChat(chatId: string) {
             id: p.user_id, 
             username: 'Unknown User', 
             user_id: p.user_id,
-            avatar_url: null // Always include avatar_url, even if null
+            avatar_url: null
           }
         };
       }) || [];
@@ -367,7 +366,7 @@ export function useChat(chatId: string) {
             id: m.user_id, 
             username: 'Unknown User', 
             user_id: m.user_id,
-            avatar_url: null // Always include avatar_url, even if null
+            avatar_url: null
           },
           user: { username: userProfile?.username || 'Unknown User' },
           reactions: [],
@@ -387,7 +386,7 @@ export function useChat(chatId: string) {
     enabled: !!user && !!chatId,
     retry: (failureCount, error) => {
       // Don't retry if it's a permission/not found error
-      if (error?.message?.includes('not found') || error?.message?.includes('access')) {
+      if (error?.message?.includes('not found') || error?.message?.includes('not a participant')) {
         return false;
       }
       return failureCount < 3;
