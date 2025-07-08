@@ -15,6 +15,7 @@ export interface Chat {
   participants?: Participant[];
   lastMessage?: Message;
   unreadCount?: number;
+  messages?: Message[];
 }
 
 export interface Participant {
@@ -38,18 +39,31 @@ export interface Message {
   chat_id: string;
   user_id: string;
   content: string;
-  type: string;
+  type: 'text' | 'voice';
   media_url?: string;
   file_name?: string;
   file_size?: number;
   voice_duration?: number;
   created_at: string;
-  status: string;
+  status: 'sent' | 'delivered' | 'read';
   reply_to?: string;
   forwarded_from?: string;
   deleted_at?: string;
   deleted_by?: string;
   profile?: Profile;
+  reactions?: MessageReaction[];
+  reply_to_message?: {
+    content: string;
+    type: 'text' | 'voice';
+    user?: { username: string; };
+  };
+  user?: { username: string; };
+}
+
+export interface MessageReaction {
+  emoji: string;
+  userId: string;
+  createdAt: string;
 }
 
 // Get all chats for current user
@@ -83,8 +97,6 @@ export function useChats() {
         console.error('Error fetching participant chats:', participantError);
         throw participantError;
       }
-
-      console.log('Participant data:', participantData);
 
       if (!participantData || participantData.length === 0) {
         return [];
@@ -172,7 +184,7 @@ export function useChats() {
           ...chat,
           participants: chatParticipants.map(p => ({
             ...p,
-            profile: p.profiles
+            profile: Array.isArray(p.profiles) ? p.profiles[0] : p.profiles
           })),
           lastMessage: lastMessage || undefined,
           unreadCount: unreadData?.unreadCount || 0
@@ -187,7 +199,10 @@ export function useChats() {
   });
 }
 
-// Get single chat by ID with error handling
+// Export alias for backward compatibility
+export const useUserChats = useChats;
+
+// Get single chat by ID with messages
 export function useChat(chatId: string) {
   const { user } = useAuth();
   
@@ -264,11 +279,53 @@ export function useChat(chatId: string) {
         throw participantsError;
       }
 
+      // Get messages
+      const { data: messages, error: messagesError } = await supabase
+        .from('messages')
+        .select(`
+          id,
+          chat_id,
+          user_id,
+          content,
+          type,
+          media_url,
+          file_name,
+          file_size,
+          voice_duration,
+          created_at,
+          status,
+          reply_to,
+          forwarded_from,
+          deleted_at,
+          deleted_by,
+          profiles!messages_user_id_fkey(
+            id,
+            username,
+            avatar_url
+          )
+        `)
+        .eq('chat_id', chatId)
+        .is('deleted_at', null)
+        .order('created_at', { ascending: true });
+
+      if (messagesError) {
+        console.error('Messages fetch error:', messagesError);
+        throw messagesError;
+      }
+
       const result = {
         ...chat,
         participants: participants?.map(p => ({
           ...p,
-          profile: p.profiles
+          profile: Array.isArray(p.profiles) ? p.profiles[0] : p.profiles
+        })) || [],
+        messages: messages?.map(m => ({
+          ...m,
+          type: m.type as 'text' | 'voice',
+          status: m.status as 'sent' | 'delivered' | 'read',
+          profile: Array.isArray(m.profiles) ? m.profiles[0] : m.profiles,
+          user: Array.isArray(m.profiles) ? m.profiles[0] : m.profiles,
+          reactions: []
         })) || []
       };
 
@@ -282,6 +339,112 @@ export function useChat(chatId: string) {
         return false;
       }
       return failureCount < 3;
+    },
+  });
+}
+
+// Send message
+export function useSendMessage() {
+  const { user } = useAuth();
+  const queryClient = useQueryClient();
+  
+  return useMutation({
+    mutationFn: async ({ 
+      chatId, 
+      content, 
+      type = 'text',
+      replyTo 
+    }: { 
+      chatId: string; 
+      content: string; 
+      type?: 'text' | 'voice';
+      replyTo?: string;
+    }) => {
+      if (!user) throw new Error('No authenticated user');
+      
+      const { data: message, error } = await supabase
+        .from('messages')
+        .insert({
+          chat_id: chatId,
+          user_id: user.id,
+          content,
+          type,
+          reply_to: replyTo || null,
+          status: 'sent'
+        })
+        .select()
+        .single();
+        
+      if (error) {
+        console.error('Error sending message:', error);
+        throw error;
+      }
+      
+      return message;
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['chat', variables.chatId] });
+      queryClient.invalidateQueries({ queryKey: ['chats'] });
+    },
+    onError: (error: any) => {
+      console.error('Send message error:', error);
+      toast({
+        title: 'Error',
+        description: `Failed to send message: ${error.message}`,
+        variant: 'destructive',
+      });
+    },
+  });
+}
+
+// Add reaction to message
+export function useAddReaction() {
+  const queryClient = useQueryClient();
+  
+  return useMutation({
+    mutationFn: async ({ messageId, emoji }: { messageId: string; emoji: string }) => {
+      const { user } = useAuth();
+      if (!user) throw new Error('No authenticated user');
+      
+      const { data, error } = await supabase
+        .from('message_reactions')
+        .insert({
+          message_id: messageId,
+          user_id: user.id,
+          emoji
+        })
+        .select()
+        .single();
+        
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['chat'] });
+    },
+  });
+}
+
+// Remove reaction from message
+export function useRemoveReaction() {
+  const queryClient = useQueryClient();
+  
+  return useMutation({
+    mutationFn: async ({ messageId, emoji }: { messageId: string; emoji: string }) => {
+      const { user } = useAuth();
+      if (!user) throw new Error('No authenticated user');
+      
+      const { error } = await supabase
+        .from('message_reactions')
+        .delete()
+        .eq('message_id', messageId)
+        .eq('user_id', user.id)
+        .eq('emoji', emoji);
+        
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['chat'] });
     },
   });
 }
@@ -347,7 +510,7 @@ export function useCreateChat() {
       }
       
       console.log('Added participants to chat:', chat.id);
-      return chat;
+      return chat.id;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['chats'] });

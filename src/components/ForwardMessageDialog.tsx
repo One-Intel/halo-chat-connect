@@ -1,6 +1,6 @@
 
 import React, { useState } from 'react';
-import { useUserChats } from '@/services/chatService';
+import { useChats } from '@/services/chatService';
 import { useAuth } from '@/contexts/AuthContext';
 import { Search } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -19,13 +19,13 @@ interface ForwardMessageDialogProps {
 export function ForwardMessageDialog({ message, onClose, onForward }: ForwardMessageDialogProps) {
   const { user } = useAuth();
   const [searchQuery, setSearchQuery] = useState('');
-  const { data: chats = [] } = useUserChats();
+  const { data: chats = [] } = useChats();
 
   const filteredChats = chats.filter(chat => {
-    const otherParticipant = chat.participants.find(p => p.id !== user?.id);
-    if (!otherParticipant) return false;
+    const otherParticipant = chat.participants?.find(p => p.user_id !== user?.id);
+    if (!otherParticipant?.profile) return false;
     
-    return otherParticipant.username.toLowerCase().includes(searchQuery.toLowerCase());
+    return otherParticipant.profile.username?.toLowerCase().includes(searchQuery.toLowerCase());
   });
 
   return (
@@ -49,8 +49,8 @@ export function ForwardMessageDialog({ message, onClose, onForward }: ForwardMes
           <ScrollArea className="h-[300px] pr-4">
             <div className="space-y-2">
               {filteredChats.map(chat => {
-                const otherParticipant = chat.participants.find(p => p.id !== user?.id);
-                if (!otherParticipant) return null;
+                const otherParticipant = chat.participants?.find(p => p.user_id !== user?.id);
+                if (!otherParticipant?.profile) return null;
 
                 return (
                   <button
@@ -58,9 +58,9 @@ export function ForwardMessageDialog({ message, onClose, onForward }: ForwardMes
                     onClick={() => onForward(chat.id)}
                     className="w-full flex items-center space-x-3 p-2 hover:bg-gray-100 rounded-lg transition-colors"
                   >
-                    <Avatar src={otherParticipant.avatar_url} />
+                    <Avatar src={otherParticipant.profile.avatar_url} />
                     <div className="flex-1 text-left">
-                      <p className="font-medium">{otherParticipant.username}</p>
+                      <p className="font-medium">{otherParticipant.profile.username}</p>
                       {chat.lastMessage && (
                         <p className="text-sm text-gray-500 truncate">
                           {chat.lastMessage.type === 'voice' ? 'Voice message' : chat.lastMessage.content}

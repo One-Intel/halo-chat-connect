@@ -7,7 +7,7 @@ import ChatListItem from '@/components/ChatListItem';
 import EmptyState from '@/components/EmptyState';
 import NavBar from '@/components/NavBar';
 import SettingsDialog from '@/components/SettingsDialog';
-import { useUserChats } from '@/services/chatService';
+import { useChats } from '@/services/chatService';
 import { useAuth } from '@/contexts/AuthContext';
 import { usePresence } from '@/services/presenceService';
 import {
@@ -22,11 +22,11 @@ import { Skeleton } from '@/components/ui/skeleton';
 const ChatList: React.FC = () => {
   const { user, signOut } = useAuth();
   const navigate = useNavigate();
-  const { data: chats, isLoading } = useUserChats();
+  const { data: chats, isLoading } = useChats();
   const [showSettings, setShowSettings] = useState(false);
 
   const otherParticipantIds = chats?.flatMap(chat =>
-    chat.participants.filter(p => p.id !== user?.id).map(p => p.id)
+    chat.participants?.filter(p => p.user_id !== user?.id).map(p => p.user_id) || []
   ) || [];
   const { presence, isOnline } = usePresence(otherParticipantIds);
 
@@ -113,15 +113,15 @@ const ChatList: React.FC = () => {
         ) : chats && chats.length > 0 ? (
           <div>
             {chats.map(chat => {
-              const otherParticipant = chat.participants.find(p => p.id !== user?.id);
-              const onlineStatus = otherParticipant ? (isOnline(otherParticipant.id) ? "online" : "offline") : null;
+              const otherParticipant = chat.participants?.find(p => p.user_id !== user?.id);
+              const onlineStatus = otherParticipant ? (isOnline(otherParticipant.user_id) ? "online" : "offline") : null;
               return (
                 <ChatListItem
                   key={chat.id}
                   id={chat.id}
-                  name={otherParticipant?.username || 'Unknown User'}
-                  avatar={otherParticipant?.avatar_url}
-                  userId={otherParticipant?.user_id}
+                  name={otherParticipant?.profile?.username || 'Unknown User'}
+                  avatar={otherParticipant?.profile?.avatar_url}
+                  userId={otherParticipant?.profile?.user_id}
                   lastMessage={chat.lastMessage?.content}
                   timestamp={chat.lastMessage?.created_at ? new Date(chat.lastMessage.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : undefined}
                   unreadCount={0}

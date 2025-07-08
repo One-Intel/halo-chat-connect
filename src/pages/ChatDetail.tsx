@@ -1,3 +1,4 @@
+
 import React, { useRef, useEffect, useState } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { Phone, Video, ArrowLeft, MoreVertical, UserPlus, Archive, Trash2, Clock } from 'lucide-react';
@@ -67,11 +68,11 @@ const ChatDetail: React.FC = () => {
   // Use an array with the other participant id if present, otherwise an empty array
   const { presence, isOnline } = usePresence(
     chat && user
-      ? chat.participants.filter(p => p.id !== user.id).map(p => p.id)
+      ? chat.participants?.filter(p => p.user_id !== user.id).map(p => p.user_id) || []
       : []
   );
 
-  const otherParticipant = chat?.participants.find(p => p.id !== user?.id);
+  const otherParticipant = chat?.participants?.find(p => p.user_id !== user?.id);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -118,14 +119,14 @@ const ChatDetail: React.FC = () => {
     
     initiateCall(
       { 
-        receiverId: otherParticipant.id, 
+        receiverId: otherParticipant.user_id, 
         callType: type 
       },
       {
         onSuccess: (call) => {
           toast({
             title: `${type === 'video' ? 'Video' : 'Audio'} call initiated`,
-            description: `Calling ${otherParticipant.username}...`,
+            description: `Calling ${otherParticipant.profile?.username}...`,
           });
           // Navigate to call screen
           navigate(`/call/${call.id}`);
@@ -145,7 +146,7 @@ const ChatDetail: React.FC = () => {
   const handleBlockUser = () => {
     toast({
       title: "User blocked",
-      description: `${otherParticipant?.username} has been blocked`,
+      description: `${otherParticipant?.profile?.username} has been blocked`,
     });
   };
 
@@ -198,60 +199,16 @@ const ChatDetail: React.FC = () => {
   };
 
   const handleReply = (messageId: string) => {
-    const message = chat?.messages.find(m => m.id === messageId);
+    const message = chat?.messages?.find(m => m.id === messageId);
     if (message) {
-      const formattedMessage: Message = {
-        id: message.id,
-        chat_id: message.chat_id,
-        user_id: message.user_id,
-        content: message.content,
-        created_at: message.created_at,
-        status: (message.status as 'sent' | 'delivered' | 'read') || 'sent',
-        type: message.type as 'text' | 'voice',
-        media_url: message.media_url,
-        reply_to: message.reply_to,
-        reactions: message.reactions?.map(r => ({
-          emoji: r.emoji,
-          userId: r.user_id,
-          createdAt: r.created_at
-        })) || [],
-        reply_to_message: message.reply_to_message ? {
-          content: message.reply_to_message.content,
-          type: message.reply_to_message.type as 'text' | 'voice',
-          user: message.reply_to_message.user
-        } : undefined,
-        user: message.user
-      };
-      setReplyTo(formattedMessage);
+      setReplyTo(message);
     }
   };
 
   const handleForward = (messageId: string) => {
-    const message = chat?.messages.find(m => m.id === messageId);
+    const message = chat?.messages?.find(m => m.id === messageId);
     if (message) {
-      const formattedMessage: Message = {
-        id: message.id,
-        chat_id: message.chat_id,
-        user_id: message.user_id,
-        content: message.content,
-        created_at: message.created_at,
-        status: (message.status as 'sent' | 'delivered' | 'read') || 'sent',
-        type: message.type as 'text' | 'voice',
-        media_url: message.media_url,
-        reply_to: message.reply_to,
-        reactions: message.reactions?.map(r => ({
-          emoji: r.emoji,
-          userId: r.user_id,
-          createdAt: r.created_at
-        })) || [],
-        reply_to_message: message.reply_to_message ? {
-          content: message.reply_to_message.content,
-          type: message.reply_to_message.type as 'text' | 'voice',
-          user: message.reply_to_message.user
-        } : undefined,
-        user: message.user
-      };
-      setForwardMessage(formattedMessage);
+      setForwardMessage(message);
       setShowForwardDialog(true);
     }
   };
@@ -346,16 +303,16 @@ const ChatDetail: React.FC = () => {
           <Link to="/chats" className="mr-3">
             <ArrowLeft className="h-5 w-5" />
           </Link>
-          <Avatar src={otherParticipant?.avatar_url || undefined} alt={otherParticipant?.username || ''} status={otherParticipant ? (isOnline(otherParticipant.id) ? "online" : "offline") : null} />
+          <Avatar src={otherParticipant?.profile?.avatar_url || undefined} alt={otherParticipant?.profile?.username || ''} status={otherParticipant ? (isOnline(otherParticipant.user_id) ? "online" : "offline") : null} />
           <div className="ml-3">
             <h2 className="font-medium flex items-center">
-              {otherParticipant?.username}
-              {isOnline(otherParticipant?.id ?? '') && (
+              {otherParticipant?.profile?.username}
+              {isOnline(otherParticipant?.user_id ?? '') && (
                 <span className="ml-2 px-2 py-0.5 text-xs rounded-full bg-green-100 text-green-600">Online</span>
               )}
             </h2>
             <p className="text-xs text-wispa-100">
-              {otherTypingUsers.length > 0 ? 'Typing...' : (isOnline(otherParticipant?.id ?? '') ? "Active now" : "Last seen recently")}
+              {otherTypingUsers.length > 0 ? 'Typing...' : (isOnline(otherParticipant?.user_id ?? '') ? "Active now" : "Last seen recently")}
             </p>
           </div>
         </div>
@@ -413,7 +370,7 @@ const ChatDetail: React.FC = () => {
       </header>
       
       <div className="flex-1 overflow-y-auto p-4 bg-gray-50">
-        {chat.messages.length === 0 ? (
+        {!chat.messages || chat.messages.length === 0 ? (
           <div className="flex items-center justify-center h-full text-gray-500">
             <p>No messages yet. Start the conversation!</p>
           </div>
@@ -429,13 +386,9 @@ const ChatDetail: React.FC = () => {
                   content={message.type === 'voice' ? message.media_url || '' : message.content}
                   timestamp={formatMessageTimestamp(message.created_at)}
                   isOwnMessage={message.user_id === user?.id}
-                  status={(message.status as 'sent' | 'delivered' | 'read') || 'sent'}
-                  type={message.type as 'text' | 'voice'}
-                  reactions={message.reactions?.map(r => ({
-                    emoji: r.emoji,
-                    userId: r.user_id,
-                    createdAt: r.created_at
-                  })) || []}
+                  status={message.status}
+                  type={message.type}
+                  reactions={message.reactions || []}
                   currentUserId={user?.id}
                   reply_to_message={message.reply_to_message}
                   onAddReaction={handleAddReaction}
